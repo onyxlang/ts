@@ -1,5 +1,5 @@
 // @deno-types="https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.d.ts"
-import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/parser.js";
+import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.js";
 
 import * as AST from "./ast.ts";
 import { Panic } from "./compiler.ts";

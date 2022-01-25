@@ -1,0 +1,23 @@
+{
+  "name": "phoenix",
+  "version": "0.1.0",
+  "description": "A reference Onyx compiler",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "deno compile -A --output bin/phoenix.exe src/main.ts",
+    "spec": "deno test --allow-run spec/spec.ts -- bin/phoenix.exe"
+  },
+  "keywords": [
+    "onyx",
+    "deno",
+    "zig",
+    "native",
+    "compiler"
+  ],
+  "author": "Vladislav Kosarev",
+  "license": "AGPL-3.0",
+  "devDependencies": {
+    "@types/node": "^17.0.10"
+  }
+}

@@ -1,6 +1,7 @@
+import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
+
 import Program from "./program.ts";
 import * as AST from "./ast.ts";
-import { replaceExt } from "./util.ts";
 
 // An Onyx compilation unit.
 export default class Unit {
@@ -18,17 +19,15 @@ export default class Unit {
 
   /**
    * Lower the unit to Zig code.
-   *
-   * @param output_path Output file path, defaults to "*.zig"
    */
-  async lower(output_path?: string) {
+  async lower() {
     if (!this.ast)
       throw Error(`Unit's AST at ${this.path} hasn't been compiled yet`);
 
-    if (!output_path) {
-      output_path = replaceExt(this.path, ".zig");
-    }
+    const output_path = await this.program.cachePath(this.path, ".zig");
+    console.debug(`Writing to ${output_path}`);
 
+    Deno.mkdir(pathAPI.dirname(output_path), { recursive: true });
     const file = await Deno.open(output_path, {
       create: true,
       truncate: true,

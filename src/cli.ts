@@ -2,6 +2,7 @@ import yargs from "https://deno.land/x/yargs/deno.ts";
 import { Arguments } from "https://deno.land/x/yargs/deno-types.ts";
 import { run, build, parse } from "./compiler.ts";
 import { replaceExt } from "./util.ts";
+import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 
 export default function (args: any) {
   return yargs(args)
@@ -15,7 +16,14 @@ export default function (args: any) {
       },
       async (argv: Arguments) => {
         console.debug(argv);
-        await run(argv.file, argv.zig);
+
+        const result = await run(
+          pathAPI.resolve(argv.file),
+          argv.zig,
+          pathAPI.resolve(argv["cache-dir"])
+        );
+
+        Deno.exit(result ? 0 : 1);
       }
     )
 
@@ -32,10 +40,18 @@ export default function (args: any) {
 
         const input = argv.file;
         let output: string;
+
         if (argv.output) output = argv.output;
         else output = replaceExt(input, ".exe");
 
-        await build(input, output, argv.zig);
+        const result = await build(
+          pathAPI.resolve(input),
+          pathAPI.resolve(output),
+          argv.zig,
+          pathAPI.resolve(argv["cache-dir"])
+        );
+
+        Deno.exit(result ? 0 : 1);
       }
     )
 
@@ -55,7 +71,13 @@ export default function (args: any) {
       },
       async (argv: Arguments) => {
         console.debug(argv);
-        await parse(argv.file, argv.output);
+
+        const result = await parse(
+          pathAPI.resolve(argv.file),
+          pathAPI.resolve(argv.output)
+        );
+
+        Deno.exit(result ? 0 : 1);
       }
     )
 
@@ -63,6 +85,12 @@ export default function (args: any) {
       describe: "Zig compiler executable path",
       type: "string",
       default: "zig",
+    })
+
+    .option("cache-dir", {
+      describe: "Cache directory",
+      type: "string",
+      default: pathAPI.join(".cache", "phoenix"),
     })
 
     .demandCommand(1, "")

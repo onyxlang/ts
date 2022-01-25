@@ -3,12 +3,19 @@ import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15
 
 import * as AST from "./ast.ts";
 import { Panic } from "./compiler.ts";
+import { digest } from "./util.ts";
 import Unit from "./unit.ts";
+import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 
 // An Onyx program.
 export default class Program {
-  ffi_protos = new Map<string, AST.CProto>();
   units = new Array<Unit>();
+  cache_dir?: string;
+  ffi_protos = new Map<string, AST.CProto>();
+
+  constructor(cache_dir?: string) {
+    this.cache_dir = cache_dir;
+  }
 
   /**
    * Create and return a new compilation unit at _path_.
@@ -32,5 +39,22 @@ export default class Program {
     } else {
       throw new Panic(location, `C function \`${id}\` undeclared`);
     }
+  }
+
+  /**
+   * Return path of the file in the cache dir with optional extension,
+   * otherwise extension-less.
+   *
+   * @example cachePath("./foo/bar.nx")         // "<cache>/<hash>"
+   * @example cachePath("./foo/bar.nx", ".zig") // "<cache>/<hash>.zig"
+   */
+  async cachePath(path: string, ext?: string): Promise<string> {
+    if (!this.cache_dir) throw Error("Cache dir is not set for program");
+
+    const resolved = pathAPI.resolve(path);
+    const hash = await digest("sha-1", resolved);
+
+    if (ext) return pathAPI.join(this.cache_dir, hash + ext!);
+    else return pathAPI.join(this.cache_dir, hash);
   }
 }

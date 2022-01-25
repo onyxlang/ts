@@ -1,6 +1,7 @@
 // @deno-types="https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.d.ts"
 import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.js";
 
+import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 import * as AST from "./ast.ts";
 import Program from "./program.ts";
 import Unit from "./unit.ts";
@@ -44,7 +45,14 @@ const pegParser = peggy.generate(grammarSource, {
   ],
 });
 
-// Compile an Onyx AST.
+/**
+ * Compile a unit AST.
+ *
+ * @param unit
+ * @param semanticAnalysis If true, would enable semantic compilation.
+ * Otherwise, would simply parse the file.
+ * @returns
+ */
 async function compile_ast(
   unit: Unit,
   semanticAnalysis: boolean
@@ -70,9 +78,9 @@ async function compile_ast(
   }
 }
 
-async function compile(input_path: string) {
-  const program = new Program();
-  const unit = program.create_unit(input_path);
+async function compile(entry_path: string, cache_dir: string) {
+  const program = new Program(cache_dir);
+  const unit = program.create_unit(entry_path);
   unit.ast = await compile_ast(unit, true);
   await unit.lower();
   return unit;
@@ -81,34 +89,66 @@ async function compile(input_path: string) {
 /**
  * Build an Onyx program.
  *
- * @param input_path Input file path
+ * @param input_path  Input source file path
  * @param output_path Output executable path
- * @param zig_path Zig compiler executable path
+ * @param zig_path    Zig compiler executable path
+ * @param cache_dir   Cache directory
+ *
+ * @return True if succeeded
  */
 export async function build(
   input_path: string,
   output_path: string,
-  zig_path: string
-) {
-  const unit = await compile(input_path);
+  zig_path: string,
+  cache_dir: string
+): Promise<boolean> {
+  const unit = await compile(input_path, cache_dir);
 
-  const process = Deno.run({
-    cmd: [zig_path, "build-exe", unit.lowered!, "-lc"],
-  });
+  const cmd = [
+    zig_path,
+    "build-exe",
+    unit.lowered!,
+    "-lc",
+    "--cache-dir",
+    pathAPI.join(cache_dir, "zig"),
+    "-femit-bin=" + output_path,
+  ];
 
-  await process.status();
+  console.debug(cmd.join(" "));
+  const process = Deno.run({ cmd });
+
+  return (await process.status()).success;
 }
 
 /**
  * Build and run an Onyx program.
  *
  * @param input_path Input file path
- * @param zig_path Zig compiler executable path
+ * @param zig_path   Zig compiler executable path
+ * @param cache_dir  Cache directory
+ *
+ * @return True if succeeded
  */
-export async function run(input_path: string, zig_path: string) {
-  const unit = await compile(input_path);
-  const process = Deno.run({ cmd: [zig_path, "run", unit.lowered!, "-lc"] });
-  await process.status();
+export async function run(
+  input_path: string,
+  zig_path: string,
+  cache_dir: string
+): Promise<boolean> {
+  const unit = await compile(input_path, cache_dir);
+
+  const cmd = [
+    zig_path,
+    "run",
+    unit.lowered!,
+    "-lc",
+    "--cache-dir",
+    pathAPI.join(cache_dir, "zig"),
+  ];
+
+  console.debug(cmd.join(" "));
+  const process = Deno.run({ cmd });
+
+  return (await process.status()).success;
 }
 
 /**
@@ -120,8 +160,8 @@ export async function run(input_path: string, zig_path: string) {
 export async function parse(
   input_path: string,
   output_path?: string
-): Promise<void> {
-  const program = new Program();
+): Promise<boolean> {
+  const program = new Program("");
   const unit = program.create_unit(input_path);
   const ast = await compile_ast(unit, false);
 
@@ -131,4 +171,6 @@ export async function parse(
     // If no output path is specified, output to stdout.
     console.dir(ast, { depth: 16, colors: true, showHidden: false });
   }
+
+  return true;
 }

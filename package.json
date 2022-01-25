@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "deno compile -A --output bin/phoenix.exe src/main.ts",
-    "spec": "deno test --allow-run spec/spec.ts -- bin/phoenix.exe"
+    "build": "deno compile -A --output bin/phoenix src/main.ts",
+    "spec": "deno test --allow-run spec/spec.ts -- bin/phoenix"
   },
   "keywords": [
     "onyx",

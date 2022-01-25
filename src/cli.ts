@@ -4,11 +4,13 @@ import { run, build, parse } from "./compiler.ts";
 import { replaceExt } from "./util.ts";
 import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 
-export default function (args: any) {
+export default function (name: string, args: any) {
   return yargs(args)
+    .scriptName(null)
+    .usage(`usage: ${name} <command> [options]`)
     .command(
       ["run <file>", "r <file>"],
-      "Compile and run a source file.",
+      "Compile and run program (default)",
       (yargs: any) => {
         return yargs.positional("file", {
           describe: "an Onyx source file",
@@ -29,7 +31,7 @@ export default function (args: any) {
 
     .command(
       ["compile <file>", "c <file>"],
-      "Compile a source file.",
+      "Compile program",
       (yargs: any) => {
         return yargs.positional("file", {
           describe: "an Onyx source file",
@@ -57,7 +59,7 @@ export default function (args: any) {
 
     .command(
       ["parse <file>", "p <file>"],
-      "Parse a source file.",
+      "Parse source file AST",
       (yargs: any) => {
         return yargs
           .positional("file", {
@@ -82,7 +84,7 @@ export default function (args: any) {
     )
 
     .option("zig", {
-      describe: "Zig compiler executable path",
+      describe: "Zig executable path",
       type: "string",
       default: "zig",
     })
@@ -98,7 +100,7 @@ export default function (args: any) {
     .version(false)
     .alias("help", "h")
 
-    .fail((msg: any, err: string | Error, _yargs: any) => {
+    .fail((_msg: any, err: string | Error, _yargs: any) => {
       // If there are no args passed, show the help screen and exit.
       if (Deno.args.length == 0) {
         _yargs.showHelp();

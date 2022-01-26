@@ -1,5 +1,6 @@
 import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 import { encodeToString } from "https://deno.land/std@0.97.0/encoding/hex.ts";
+import * as bufferAPI from "https://deno.land/std/io/buffer.ts";
 
 export function stringToBytes(value: string): Uint8Array {
   return new TextEncoder().encode(value);
@@ -15,4 +16,25 @@ export async function digest(algo: AlgorithmIdentifier, data: string) {
   const _data = new TextEncoder().encode(data);
   const digest = await crypto.subtle.digest(algo, _data.buffer);
   return encodeToString(new Uint8Array(digest));
+}
+
+/**
+ * @param filePath   File path to read from
+ * @param lineNumber The line number to return
+ * @returns          The line read, or undefined
+ */
+export async function readLine(
+  filePath: string,
+  lineNumber: number,
+): Promise<string | undefined> {
+  const fileReader = await Deno.open(filePath);
+
+  let i = 0;
+  for await (const line of bufferAPI.readLines(fileReader)) {
+    if (lineNumber == i++) {
+      return line;
+    }
+  }
+
+  return undefined;
 }

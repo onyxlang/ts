@@ -1,7 +1,12 @@
 // @deno-types="https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.d.ts"
 import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.js";
 
+// @deno-types="https://deno.land/x/chalk_deno@v4.1.1-deno/index.d.ts"
+import chalk from "https://deno.land/x/chalk_deno@v4.1.1-deno/source/index.js";
+
 import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
+
+import { readLine } from "./util.ts";
 import * as AST from "./ast.ts";
 import Program from "./program.ts";
 import Unit from "./unit.ts";
@@ -45,6 +50,28 @@ const pegParser = peggy.generate(grammarSource, {
   ],
 });
 
+async function customOutput(unit: Unit, e: peggy.parser.SyntaxError) {
+  const line = await readLine(unit.path, e.location.start.line);
+
+  if (!line) {
+    throw Error(
+      `Could not read line ${e.location.start.line} from ${unit.path}`,
+    );
+  }
+
+  // deno-fmt-ignore-start
+  const message = `${chalk.bgRed.bold("  Panic!  ")} Invalid syntax
+
+  At ${chalk.cyan(`${e.location.source.path}:${e.location.start.line}:${e.location.start.column}`)}
+
+     ${chalk.gray(`${e.location.start.line}. |`)} ${chalk.cyan.bold(line)}
+         ${' '.repeat(e.location.start.column)}${chalk.red.bold('^')} ${e.message}
+`;
+  // deno-fmt-ignore-end
+
+  console.error(message);
+}
+
 /**
  * Compile a unit AST.
  *
@@ -63,14 +90,14 @@ async function compile_ast(
     return pegParser.parse(input, {
       unit,
       semanticAnalysis,
+      grammarSource: unit,
     });
   } catch (e: any) {
     if (e instanceof Panic) {
       console.error("Panic! " + e.format());
       Deno.exit(1);
     } else if (typeof e.format === "function") {
-      const error = e as peggy.parser.SyntaxError;
-      console.error(error.format([{ source: null, text: input }]));
+      await customOutput(unit, e as peggy.parser.SyntaxError);
       Deno.exit(1);
     } else {
       throw e;

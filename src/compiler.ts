@@ -82,7 +82,7 @@ async function customOutput(unit: Unit, e: peggy.parser.SyntaxError) {
  */
 async function compile_ast(
   unit: Unit,
-  semanticAnalysis: boolean
+  semanticAnalysis: boolean,
 ): Promise<AST.Root> {
   const input = await Deno.readTextFile(unit.path);
 
@@ -127,7 +127,7 @@ export async function build(
   input_path: string,
   output_path: string,
   zig_path: string,
-  cache_dir: string
+  cache_dir: string,
 ): Promise<boolean> {
   const unit = await compile(input_path, cache_dir);
 
@@ -159,7 +159,7 @@ export async function build(
 export async function run(
   input_path: string,
   zig_path: string,
-  cache_dir: string
+  cache_dir: string,
 ): Promise<boolean> {
   const unit = await compile(input_path, cache_dir);
 
@@ -186,7 +186,7 @@ export async function run(
  */
 export async function parse(
   input_path: string,
-  output_path?: string
+  output_path?: string,
 ): Promise<boolean> {
   const program = new Program("");
   const unit = program.create_unit(input_path);

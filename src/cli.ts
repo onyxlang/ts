@@ -1,6 +1,6 @@
 import yargs from "https://deno.land/x/yargs/deno.ts";
 import { Arguments } from "https://deno.land/x/yargs/deno-types.ts";
-import { run, build, parse } from "./compiler.ts";
+import { build, parse, run } from "./compiler.ts";
 import { replaceExt } from "./util.ts";
 import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 
@@ -22,13 +22,12 @@ export default function (name: string, args: any) {
         const result = await run(
           pathAPI.resolve(argv.file),
           argv.zig,
-          pathAPI.resolve(argv["cache-dir"])
+          pathAPI.resolve(argv["cache-dir"]),
         );
 
         Deno.exit(result ? 0 : 1);
-      }
+      },
     )
-
     .command(
       ["compile <file>", "c <file>"],
       "Compile program",
@@ -50,13 +49,12 @@ export default function (name: string, args: any) {
           pathAPI.resolve(input),
           pathAPI.resolve(output),
           argv.zig,
-          pathAPI.resolve(argv["cache-dir"])
+          pathAPI.resolve(argv["cache-dir"]),
         );
 
         Deno.exit(result ? 0 : 1);
-      }
+      },
     )
-
     .command(
       ["parse <file>", "p <file>"],
       "Parse source file AST",
@@ -76,30 +74,26 @@ export default function (name: string, args: any) {
 
         const result = await parse(
           pathAPI.resolve(argv.file),
-          argv.output ? pathAPI.resolve(argv.output) : undefined
+          argv.output ? pathAPI.resolve(argv.output) : undefined,
         );
 
         Deno.exit(result ? 0 : 1);
-      }
+      },
     )
-
     .option("zig", {
       describe: "Zig executable path",
       type: "string",
       default: "zig",
     })
-
     .option("cache-dir", {
       describe: "Cache directory",
       type: "string",
       default: pathAPI.join(".cache", "phoenix"),
     })
-
     .demandCommand(1, "")
     .strict()
     .version(false)
     .alias("help", "h")
-
     .fail((_msg: any, err: string | Error, _yargs: any) => {
       // If there are no args passed, show the help screen and exit.
       if (Deno.args.length == 0) {

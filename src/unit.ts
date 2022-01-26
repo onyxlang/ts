@@ -21,8 +21,9 @@ export default class Unit {
    * Lower the unit to Zig code.
    */
   async lower() {
-    if (!this.ast)
+    if (!this.ast) {
       throw Error(`Unit's AST at ${this.path} hasn't been compiled yet`);
+    }
 
     const output_path = await this.program.cachePath(this.path, ".zig");
     console.debug(`Writing to ${output_path}`);

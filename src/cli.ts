@@ -76,7 +76,7 @@ export default function (name: string, args: any) {
 
         const result = await parse(
           pathAPI.resolve(argv.file),
-          pathAPI.resolve(argv.output)
+          argv.output ? pathAPI.resolve(argv.output) : undefined
         );
 
         Deno.exit(result ? 0 : 1);

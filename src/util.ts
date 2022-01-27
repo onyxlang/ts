@@ -20,7 +20,7 @@ export async function digest(algo: AlgorithmIdentifier, data: string) {
 
 /**
  * @param filePath   File path to read from
- * @param lineNumber The line number to return
+ * @param lineNumber The line number to return, starting from 0
  * @returns          The line read, or undefined
  */
 export async function readLine(

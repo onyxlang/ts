@@ -51,7 +51,7 @@ const pegParser = peggy.generate(grammarSource, {
 });
 
 async function customOutput(unit: Unit, e: peggy.parser.SyntaxError) {
-  const line = await readLine(unit.path, e.location.start.line);
+  const line = await readLine(unit.path, e.location.start.line - 1);
 
   if (!line) {
     throw Error(

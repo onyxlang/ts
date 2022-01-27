@@ -6,3 +6,9 @@ Deno.test("hello-world spec", async () => {
   if (!(await p.status()).success) Deno.exit(1);
   p.close();
 });
+
+Deno.test("basic spec", async () => {
+  const p = Deno.run({ cmd: [compiler_exe, "r", "spec/basic.nx"] });
+  if (!(await p.status()).success) Deno.exit(1);
+  p.close();
+});

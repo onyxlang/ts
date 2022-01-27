@@ -1,7 +1,11 @@
 import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 
+// @deno-types="https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.d.ts"
+import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.js";
+
 import Program from "./program.ts";
 import * as AST from "./ast.ts";
+import { Panic } from "./compiler.ts";
 
 // An Onyx compilation unit.
 export default class Unit {
@@ -12,9 +16,23 @@ export default class Unit {
   // A lowered module file path, if any.
   lowered?: string;
 
+  funcDefs = new Map<string, AST.FuncDef>();
+
   constructor(program: Program, path: string) {
     this.program = program;
     this.path = path;
+  }
+
+  lookupFuncDef(location: peggy.Location, id: string): AST.FuncRef {
+    if (this.funcDefs.has(id)) {
+      return new AST.FuncRef(this.funcDefs.get(id)!);
+    } else {
+      throw new Panic(location, `Undefined function \`${id}\``);
+    }
+  }
+
+  addFuncDef(_location: peggy.Location, node: AST.FuncDef) {
+    this.funcDefs.set(node.id.id, node);
   }
 
   /**
@@ -40,7 +58,7 @@ export default class Unit {
       const main: AST.Node[] = [];
 
       for (const node of this.ast!) {
-        if (node instanceof AST.Extern) {
+        if (node instanceof AST.Extern || node instanceof AST.FuncDef) {
           await node.lowerToZig(file);
         } else {
           main.push(node);

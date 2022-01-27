@@ -56,6 +56,9 @@ export class CType implements Node {
       case "char":
         zigType = "u8";
         break;
+      case "_Noreturn":
+        zigType = "noreturn";
+        break;
       default:
         throw Error(`Can not lower C type \`${this.type}\` to Zig`);
     }
@@ -168,54 +171,66 @@ export class FFIProtoRef implements Node {
   }
 }
 
-export class FFICall implements Node {
-  callee: FFIProtoRef;
-  args: RVal[];
+export class Call implements Node {
+  callee: FFIProtoRef | FuncRef;
+  args: Tuple;
 
-  constructor(callee: FFIProtoRef, args: RVal[]) {
+  constructor(callee: FFIProtoRef, args: Tuple) {
     this.callee = callee;
     this.args = args;
   }
 
   async lowerToZig(file: Deno.File) {
-    await this.callee.lowerToZig(file);
-    await file.write(stringToBytes("("));
-
-    let first = true;
-    for (const arg of this.args) {
-      if (first) first = false;
-      else await file.write(stringToBytes(", "));
-      await arg.lowerToZig(file);
+    if (this.callee instanceof FuncRef) {
+      const funcDef = this.callee.def as FuncDef;
+      if (funcDef.builtin) {
+        switch (funcDef.id.id) {
+          case "sum": {
+            await this.args.elements[0].lowerToZig(file);
+            await file.write(stringToBytes(" + "));
+            await this.args.elements[1].lowerToZig(file);
+            break;
+          }
+          case "eq?": {
+            await this.args.elements[0].lowerToZig(file);
+            await file.write(stringToBytes(" == "));
+            await this.args.elements[1].lowerToZig(file);
+            break;
+          }
+          default:
+            throw Error(`Unrecognized builtin function \`${funcDef.id.id}\``);
+        }
+      } else {
+        throw Error("Not implemented");
+      }
+    } else {
+      await this.callee.lowerToZig(file);
+      await this.args.lowerToZig(file);
+      await file.write(stringToBytes(";"));
     }
-
-    await file.write(stringToBytes(");"));
   }
 }
 
-export type Expr = FFICall;
-export type RVal = Expr | FFIStringLiteral;
+export type Expr = Call | FFIStringLiteral;
 
 export class SafetyStatement implements Node {
   safety: Safety;
-  exprs: Expr[];
+  body: Block;
 
-  constructor(safety: Safety, exprs: Expr[]) {
+  constructor(safety: Safety, body: Block) {
     this.safety = safety;
-    this.exprs = exprs;
+    this.body = body;
   }
 
   async lowerToZig(file: Deno.File) {
-    for (const expr of this.exprs) {
-      await expr.lowerToZig(file);
-      await file.write(stringToBytes("\n"));
-    }
+    await this.body.lowerToZig(file);
   }
 }
 
 export class Tuple implements Node {
-  elements: RVal[];
+  elements: Expr[];
 
-  constructor(elements: RVal[]) {
+  constructor(elements: Expr[]) {
     this.elements = elements;
   }
 
@@ -233,4 +248,147 @@ export class Tuple implements Node {
   }
 }
 
-export type Root = (Extern | SafetyStatement)[];
+export class ID implements Node {
+  id: string;
+
+  constructor(id: string) {
+    this.id = id;
+  }
+
+  async lowerToZig(file: Deno.File) {
+    await file.write(stringToBytes(this.id));
+  }
+}
+
+export class VarDef implements Node {
+  id: ID;
+  restriction?: ID;
+
+  constructor(id: ID, restriction?: ID) {
+    this.id = id;
+    this.restriction = restriction;
+  }
+
+  async lowerToZig(file: Deno.File) {
+    await this.id.lowerToZig(file);
+  }
+}
+
+export class FuncDef implements Node {
+  id: ID;
+  builtin: boolean;
+  args: VarDef[];
+  returnType?: ID;
+
+  // Undefined if `builtin`.
+  body?: Block;
+
+  constructor(builtin: boolean, id: ID, args: VarDef[], returnType?: ID) {
+    this.builtin = builtin;
+    this.id = id;
+    this.args = args;
+    this.returnType = returnType;
+  }
+
+  async lowerToZig(_file: Deno.File) {
+    // Builtin functions aren't lowered.
+  }
+}
+
+export class FuncRef implements Node {
+  def: FuncDef | ID;
+
+  constructor(def: FuncDef | ID) {
+    this.def = def;
+  }
+
+  async lowerToZig(file: Deno.File) {
+    if (this.def instanceof FuncDef) {
+      await this.def.id.lowerToZig(file);
+    } else {
+      await this.def.lowerToZig(file);
+    }
+  }
+}
+
+export class Block implements Node {
+  exprs: Expr[];
+
+  constructor(exprs: Expr[]) {
+    this.exprs = exprs;
+  }
+
+  async lowerToZig(file: Deno.File) {
+    await file.write(stringToBytes("{"));
+    for (const expr of this.exprs) {
+      await expr.lowerToZig(file);
+      await file.write(stringToBytes("\n"));
+    }
+    await file.write(stringToBytes("}"));
+  }
+}
+
+export class IntLiteral implements Node {
+  value: string;
+
+  constructor(value: string) {
+    this.value = value;
+  }
+
+  async lowerToZig(file: Deno.File): Promise<void> {
+    await file.write(stringToBytes(this.value));
+  }
+}
+
+export class Case implements Node {
+  cond: Expr;
+  then: Block;
+
+  constructor(cond: Expr, then: Block) {
+    this.cond = cond;
+    this.then = then;
+  }
+
+  async lowerToZig(file: Deno.File): Promise<void> {
+    await file.write(stringToBytes("("));
+    await this.cond.lowerToZig(file);
+    await file.write(stringToBytes(")"));
+    await this.then.lowerToZig(file);
+  }
+}
+
+export class If implements Node {
+  self: Case;
+  elifs: Case[];
+  else?: Block;
+
+  constructor(self: Case, elifs: Case[] = [], _else?: Block) {
+    this.self = self;
+    this.elifs = elifs;
+    this.else = _else;
+  }
+
+  async lowerToZig(file: Deno.File): Promise<void> {
+    await file.write(stringToBytes("if"));
+    await this.self.lowerToZig(file);
+
+    if (this.else) {
+      await file.write(stringToBytes("else"));
+      await this.else!.lowerToZig(file);
+    }
+  }
+}
+
+export class Comment implements Node {
+  value: string;
+
+  constructor(value: string) {
+    this.value = value;
+  }
+
+  async lowerToZig(_file: Deno.File) {
+    // Ignore comments.
+  }
+}
+
+export type Root = (Extern | SafetyStatement | FuncDef | Comment)[];

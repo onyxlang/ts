@@ -15,21 +15,106 @@
     console.log(`Parsing ${unit.path}`)
 }
 
-start = (extern_drct / safety_stmt)*
+start = (comment / extern_drct / safety_stmt / func_builtin_def / if)*
+
+expr = int_literal / ffi_str_lit / call / monuple / tuple
+
+tuple = '(' wsp?
+  head:expr
+  tail:(wsp? ',' wsp? @expr)*
+  wsp? ')'
+  {
+    return new nx.AST.Tuple([head].concat(tail));
+  }
+
+monuple = '(' wsp? body:expr wsp? ')' { return body }
+
+id = $([a-zA-Z_] [a-zA-Z_0-9]* [!?]?) { return new nx.AST.ID(text()) }
+
+int_literal = $('0' / ([1-9] [0-9]*)) { return new nx.AST.IntLiteral(text()) }
+
+// Function
+//
+
+var_def = id:id sp ":" sp restriction:id {
+  return new nx.AST.VarDef(id, restriction)
+}
+
+func_args = '(' wsp?
+  head:var_def
+  tail:(sp* "," sp* @var_def)*
+  wsp? ')'
+  {
+    return [head].concat(tail);
+  }
+
+func_builtin_def = "builtin" sp "def" sp id:id args:func_args sp ":" sp returnType:id term {
+  const node = new nx.AST.FuncDef(true, id, args, returnType)
+
+  if (semanticAnalysis)
+    unit.addFuncDef(location(), node)
+
+  return node
+}
+
+call = c:"$"? callee:id args:tuple {
+  if (c) {
+    let ref
+
+    if (semanticAnalysis)
+      ref = unit.program.ref_ffi_proto(location(), callee.id)
+    else
+      ref = new nx.AST.FFIProtoRef(callee)
+
+    return new nx.AST.Call(ref, args)
+  } else {
+    let def
+
+    if (semanticAnalysis)
+      def = unit.lookupFuncDef(location(), callee.id)
+    else
+      def = new nx.AST.FuncRef(callee)
+
+    return new nx.AST.Call(def, args)
+  }
+}
+
+// Branching
+//
+
+block = '{' wsp?
+  head:expr
+  tail:(term @expr)*
+  term?
+  wsp? '}'
+  {
+    return new nx.AST.Block([head].concat(tail));
+  }
+
+case = cond:expr wsp? then:block {
+  return new nx.AST.Case(cond, then)
+}
+
+if = "if" sp? self:case else_body:(wsp? "else" wsp? @block) term {
+  return new nx.AST.If(self, [], else_body)
+}
+
+// Punctuation
+//
 
 EOF = !.
 sp = ' '+ { return nx.Punct.SPACE }
 nl = sp* ('\n\r' / '\n' / '\r') sp* { return nx.Punct.NEWLINE }
-wsp = nl+ { return nx.Punct.WHITESPACE }
-term = nl+ / ';' / $EOF // Onyx terminator
+wsp = (nl / sp)+ { return nx.Punct.WHITESPACE }
+term = (';' / nl) nl* $EOF? // Onyx terminator
 nadj = sp+ / nl+ // Non-adjacent (e.g. `if` body expression may be on a new line)
 
-// Extern directive
-//
-
-extern_drct = wsp? $"extern" $nadj stmt:c_proto wsp? {
-  return new nx.AST.Extern(stmt)
+comment = '#' value:$([^\n\r]+) ('\n\r' / '\n' / '\r' / EOF) {
+  return new nx.AST.Comment(value)
 }
+
+// Extern
+//
 
 c_term = ';'
 c_proto_arg = const_mod:$("const" sp)? type:c_type id:($sp+ @$c_id)? {
@@ -58,36 +143,21 @@ c_type = id:c_id depth:'*'* {
   return new nx.AST.CType(id, depth.length)
 }
 
+extern_drct = wsp? $"extern" $nadj stmt:c_proto wsp? {
+  return new nx.AST.Extern(stmt)
+}
+
+// FFI
+//
+
+ffi_str_lit = '$' '"' value:$([^"\\] / "\\" .)* '"' {
+  return new nx.AST.FFIStringLiteral(value)
+}
+
 // Safety statement
 //
 
 safety_kw = "unsafe" / "fragile" / "threadsafe"
 safety_stmt = wsp? safety:safety_kw '!' $nadj expr:expr wsp? {
-  return new nx.AST.SafetyStatement(safety, [expr])
-}
-
-ffi_call = $'$' id:c_id args:tuple {
-  let ref
-
-  if (semanticAnalysis)
-    ref = unit.program.ref_ffi_proto(location(), id)
-  else
-    ref = new nx.AST.FFIProtoRef(id)
-
-  return new nx.AST.FFICall(ref, args)
-}
-
-expr = ffi_call
-rval = expr / ffi_str_lit
-
-tuple = '('
-  head:rval
-  tail:($sp* ',' $sp* @rval)*
-  ')'
-  {
-    return [head].concat(tail);
-  }
-
-ffi_str_lit = '$' '"' value:$([^"\\] / "\\" .)* '"' {
-  return new nx.AST.FFIStringLiteral(value)
+  return new nx.AST.SafetyStatement(safety, new nx.AST.Block([expr]))
 }

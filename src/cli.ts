@@ -1,6 +1,8 @@
 import yargs from "https://deno.land/x/yargs/deno.ts";
 import { Arguments } from "https://deno.land/x/yargs/deno-types.ts";
-import { build, parse, run } from "./compiler.ts";
+import compile from "./cli/compile.ts";
+import run from "./cli/run.ts";
+import format from "./cli/format.ts";
 import { replaceExt } from "./util.ts";
 import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 
@@ -45,7 +47,7 @@ export default function (name: string, args: any) {
         if (argv.output) output = argv.output;
         else output = replaceExt(input, ".exe");
 
-        const result = await build(
+        const result = await compile(
           pathAPI.resolve(input),
           pathAPI.resolve(output),
           argv.zig,
@@ -56,8 +58,8 @@ export default function (name: string, args: any) {
       },
     )
     .command(
-      ["parse <file>", "p <file>"],
-      "Parse source file AST",
+      ["format <file>", "f <file>"],
+      "Format source file",
       (yargs: any) => {
         return yargs
           .positional("file", {
@@ -72,7 +74,7 @@ export default function (name: string, args: any) {
       async (argv: Arguments) => {
         console.debug(argv);
 
-        const result = await parse(
+        const result = await format(
           pathAPI.resolve(argv.file),
           argv.output ? pathAPI.resolve(argv.output) : undefined,
         );

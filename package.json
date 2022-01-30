@@ -4,9 +4,9 @@
   "description": "A reference Onyx compiler",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "deno test --allow-env --allow-read",
     "build": "deno compile -A --output bin/phoenix src/main.ts",
-    "spec": "deno test --allow-run spec/spec.ts -- bin/phoenix"
+    "spec": "npm run build && deno test --allow-run spec/spec.ts -- bin/phoenix"
   },
   "keywords": [
     "onyx",

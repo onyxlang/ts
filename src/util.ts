@@ -1,6 +1,6 @@
 import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 import { encodeToString } from "https://deno.land/std@0.97.0/encoding/hex.ts";
-import * as bufferAPI from "https://deno.land/std/io/buffer.ts";
+import * as BufferAPI from "https://deno.land/std/io/buffer.ts";
 
 export function stringToBytes(value: string): Uint8Array {
   return new TextEncoder().encode(value);
@@ -30,7 +30,7 @@ export async function readLine(
   const fileReader = await Deno.open(filePath);
 
   let i = 0;
-  for await (const line of bufferAPI.readLines(fileReader)) {
+  for await (const line of BufferAPI.readLines(fileReader)) {
     if (lineNumber == i++) {
       return line;
     }

@@ -6,7 +6,8 @@
   "scripts": {
     "test": "deno test --allow-env --allow-read",
     "build": "deno compile -A --output bin/phoenix src/main.ts",
-    "spec": "npm run build && deno test --allow-run spec/spec.ts -- bin/phoenix"
+    "spec": "npm run build && deno test --allow-run spec/spec.ts -- bin/phoenix",
+    "ci": "npm run test && npm run spec"
   },
   "keywords": [
     "onyx",

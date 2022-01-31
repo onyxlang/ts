@@ -121,7 +121,7 @@ label = value:id ':' {
   return new nx.CST.ID(location(), text(), {
     kind: nx.CST.IDKind.LABEL,
     wrapped: false,
-    value
+    value: value.raw
   })
 }
 
@@ -155,7 +155,7 @@ func_ion =
 }
 
 kwarg = label:label nadj expr:expr {
-  return new nx.CST.KWarg({ label, value: expr })
+  return new nx.CST.KWArg({ label, value: expr })
 }
 
 call_args = '(' sp? multiline:(ml / nl)?

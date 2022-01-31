@@ -4,7 +4,7 @@ builtin def sum(a : Int32, b : Int32) : Int32
 builtin def eq?(a : Int32, b : Int32) : Bool
 
 if eq?(sum(1, 2), 3) {
-  unsafe! $exit(0)
+  unsafe! $exit(exit_code: 0)
 } else {
   unsafe! $exit(1)
 }

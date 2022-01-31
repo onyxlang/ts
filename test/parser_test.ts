@@ -23,10 +23,32 @@ builtin def sum(a : Int32, b : Int32) : Int32
 builtin def eq?(a : Int32, b : Int32) : Bool
 
 if eq?(sum(1, 2), 3) {
-  unsafe! $exit(0)
+  unsafe! $exit(exit_code: 0)
 } else {
   unsafe! $exit(1)
 }
+`,
+  );
+});
+
+Deno.test("parser on spec/assert.nx", async () => {
+  const result = await parseToString("spec/assert.nx");
+
+  assertEquals(
+    result,
+    `extern void puts(const char*);
+extern _Noreturn exit(int exit_code);
+
+def assert(expr : Bool, message : $\`const char\`*) : void {
+  if (eq?(expr, false)) {
+    unsafe! {
+      $puts(message)
+      $exit(1)
+    }
+  }
+}
+
+assert(true, $"Shall not be output")
 `,
   );
 });

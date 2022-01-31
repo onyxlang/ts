@@ -114,8 +114,12 @@ export class Extern implements CST.Node {
     return CST.joinLocRange([this.keyword.loc(), this.value.loc()]);
   }
 
-  async print(output: BufferAPI.BufWriter, indent: number = 0): Promise<void> {
-    await CST.tab(output, indent);
+  async print(
+    output: BufferAPI.BufWriter,
+    indent: number = 0,
+    indentFirst: boolean = true,
+  ) {
+    if (indentFirst) await CST.tab(output, indent);
     await output.write(stringToBytes("extern "));
     await this.value.print(output);
   }
@@ -150,11 +154,62 @@ export class ExplicitSafetyStatement implements CST.Node {
     return CST.joinLocRange([this.keyword.loc(), this.content.loc()]);
   }
 
-  async print(output: BufferAPI.BufWriter, indent: number = 0): Promise<void> {
-    await CST.tab(output, indent);
+  async print(
+    output: BufferAPI.BufWriter,
+    indent: number = 0,
+    indentFirst: boolean = true,
+  ) {
+    if (indentFirst) await CST.tab(output, indent);
     await this.keyword.print(output);
     await output.write(CST.PunctBytes.space);
-    await this.content.print(output);
+    await this.content.print(output, indent, false);
+  }
+}
+
+/**
+ * A type pointer suffix, e.g. `*` in `T`.
+ */
+export class PointerSuffix extends CST.Token {
+  async print(output: BufferAPI.BufWriter) {
+    await output.write(CST.PunctBytes.asterisk);
+  }
+}
+
+/**
+ * A type identifier reference.
+ */
+export class TypeRef implements CST.Node {
+  id: ID;
+  pointerSuffixes: PointerSuffix[];
+
+  constructor(
+    { id, pointerSuffixes = [] }: { id: ID; pointerSuffixes: PointerSuffix[] },
+  ) {
+    this.id = id;
+    this.pointerSuffixes = pointerSuffixes;
+  }
+
+  loc() {
+    const ranges = [this.id.loc()];
+
+    for (const suffix of this.pointerSuffixes) {
+      ranges.push(suffix.loc());
+    }
+
+    return CST.joinLocRange(ranges);
+  }
+
+  async print(
+    output: BufferAPI.BufWriter,
+    indent: number = 0,
+    indentFirst: boolean = true,
+  ) {
+    if (indentFirst) await CST.tab(output, indent);
+    await this.id.print(output);
+
+    for (const suffix of this.pointerSuffixes) {
+      await suffix.print(output);
+    }
   }
 }
 
@@ -162,10 +217,10 @@ export class ExplicitSafetyStatement implements CST.Node {
  * A restriction node, e.g. `: T`.
  */
 export class Restriction implements CST.Node {
-  real?: ID;
-  virtual?: ID;
+  real?: TypeRef;
+  virtual?: TypeRef;
 
-  constructor({ real, virtual }: { real?: ID; virtual?: ID }) {
+  constructor({ real, virtual }: { real?: TypeRef; virtual?: TypeRef }) {
     this.real = real;
     this.virtual = virtual;
   }
@@ -184,7 +239,7 @@ export class Restriction implements CST.Node {
     return CST.joinLocRange(ranges);
   }
 
-  async print(output: BufferAPI.BufWriter, _indent: number = 0): Promise<void> {
+  async print(output: BufferAPI.BufWriter) {
     if (this.real) {
       await output.write(CST.PunctBytes.wrappedColon);
       await this.real.print(output);
@@ -222,8 +277,8 @@ export class VarIon implements CST.Node {
     return CST.joinLocRange(ranges);
   }
 
-  async print(output: BufferAPI.BufWriter, indent: number = 0): Promise<void> {
-    await this.id.print(output, indent);
+  async print(output: BufferAPI.BufWriter) {
+    await this.id.print(output);
     await this.restriction?.print(output);
   }
 }
@@ -251,7 +306,7 @@ export class FuncArgsDecl implements CST.Node {
     return this.location;
   }
 
-  async print(output: BufferAPI.BufWriter, _indent: number = 0): Promise<void> {
+  async print(output: BufferAPI.BufWriter) {
     await output.write(CST.PunctBytes.openParen);
 
     if (this.multiline) {
@@ -278,6 +333,7 @@ export class FuncIon implements CST.Node {
   idToken: ID;
   args: FuncArgsDecl;
   restriction?: Restriction;
+  body?: Expr;
 
   constructor({
     builtin,
@@ -285,18 +341,21 @@ export class FuncIon implements CST.Node {
     id,
     args,
     restriction,
+    body,
   }: {
     builtin?: Keyword;
     action: Keyword;
     id: ID;
     args: FuncArgsDecl;
     restriction?: Restriction;
+    body?: Expr;
   }) {
     this.builtinToken = builtin;
     this.actionToken = action;
     this.idToken = id;
     this.args = args;
     this.restriction = restriction;
+    this.body = body;
   }
 
   action(): FuncAction {
@@ -321,10 +380,14 @@ export class FuncIon implements CST.Node {
       ranges.push(this.restriction.loc());
     }
 
+    if (this.body) {
+      ranges.push(this.body.loc());
+    }
+
     return CST.joinLocRange(ranges);
   }
 
-  async print(output: BufferAPI.BufWriter, indent: number = 0): Promise<void> {
+  async print(output: BufferAPI.BufWriter, indent: number = 0) {
     await CST.tab(output, indent);
 
     if (this.builtinToken) {
@@ -337,6 +400,15 @@ export class FuncIon implements CST.Node {
     await this.idToken.print(output);
     await this.args.print(output);
     await this.restriction?.print(output);
+
+    if (this.body) {
+      if (this.body instanceof Block) {
+        await output.write(CST.PunctBytes.space);
+        await this.body.print(output, indent, false);
+      } else {
+        throw new Error("Inline function bodies aren't implemented yet");
+      }
+    }
   }
 }
 
@@ -356,9 +428,9 @@ export class KWArg implements CST.Node {
     return CST.joinLocRange([this.label.loc(), this.value.loc()]);
   }
 
-  async print(output: BufferAPI.BufWriter, indent: number = 0): Promise<void> {
-    await CST.tab(output, indent);
+  async print(output: BufferAPI.BufWriter) {
     await this.label.print(output);
+    await output.write(CST.PunctBytes.space);
     await this.value.print(output);
   }
 }
@@ -386,7 +458,7 @@ export class CallArgs implements CST.Node {
     return this.location;
   }
 
-  async print(output: BufferAPI.BufWriter, _indent: number = 0): Promise<void> {
+  async print(output: BufferAPI.BufWriter) {
     await output.write(CST.PunctBytes.openParen);
 
     if (this.multiline) {
@@ -425,9 +497,75 @@ export class Call implements CST.Node {
     return CST.joinLocRange([this.callee.loc(), this.args.loc()]);
   }
 
-  async print(output: BufferAPI.BufWriter, indent: number = 0): Promise<void> {
-    await this.callee.print(output, indent);
+  async print(
+    output: BufferAPI.BufWriter,
+    indent: number = 0,
+    indentFirst: boolean = true,
+  ) {
+    await this.callee.print(output, indentFirst ? indent : 0);
     await this.args.print(output);
+  }
+}
+
+export class Tuple implements CST.Node {
+  location: peggy.LocationRange;
+  multiline: boolean;
+  elements: Expr[];
+
+  constructor(
+    { location, multiline, elements }: {
+      location: peggy.LocationRange;
+      multiline: boolean;
+      elements: Expr[];
+    },
+  ) {
+    this.location = location;
+    this.multiline = multiline;
+    this.elements = elements;
+  }
+
+  loc() {
+    return this.location;
+  }
+
+  async print(
+    output: BufferAPI.BufWriter,
+    indent: number = 0,
+    indentFirst: boolean = true,
+  ) {
+    if (indentFirst) await CST.tab(output, indent);
+    await output.write(CST.PunctBytes.openParen);
+
+    if (this.multiline) {
+      await output.write(CST.PunctBytes.newline);
+    }
+
+    let first = true;
+    for (const element of this.elements) {
+      if (first) {
+        first = false;
+      } else {
+        if (this.multiline) {
+          await output.write(CST.PunctBytes.newline);
+        } else {
+          await output.write(CST.PunctBytes.semi);
+          await output.write(CST.PunctBytes.space);
+        }
+      }
+
+      if (this.multiline) {
+        await element.print(output, indent + 1, true);
+      } else {
+        await element.print(output, indent, false);
+      }
+    }
+
+    if (this.multiline) {
+      await output.write(CST.PunctBytes.newline);
+      await CST.tab(output, indent);
+    }
+
+    await output.write(CST.PunctBytes.closeParen);
   }
 }
 
@@ -457,20 +595,41 @@ export class Block implements CST.Node {
     return this.location;
   }
 
-  async print(output: BufferAPI.BufWriter, indent: number = 0): Promise<void> {
-    await CST.tab(output, indent);
+  async print(
+    output: BufferAPI.BufWriter,
+    indent: number = 0,
+    indentFirst: boolean = true,
+  ) {
+    if (indentFirst) await CST.tab(output, indent);
     await output.write(CST.PunctBytes.openBracket);
 
     if (this.multiline) {
       await output.write(CST.PunctBytes.newline);
     }
 
+    let first = true;
     for (const node of this.nodes) {
-      await node.print(output, indent + 1);
+      if (first) {
+        first = false;
+      } else {
+        if (this.multiline) {
+          await output.write(CST.PunctBytes.newline);
+        } else {
+          await output.write(CST.PunctBytes.semi);
+          await output.write(CST.PunctBytes.space);
+        }
+      }
+
+      if (this.multiline) {
+        await node.print(output, indent + 1, true);
+      } else {
+        await node.print(output, indent, false);
+      }
     }
 
     if (this.multiline) {
       await output.write(CST.PunctBytes.newline);
+      await CST.tab(output, indent);
     }
 
     await output.write(CST.PunctBytes.closeBracket);
@@ -513,11 +672,17 @@ export class Case implements CST.Node {
     return CST.joinLocRange(ranges);
   }
 
-  async print(output: BufferAPI.BufWriter, indent: number = 0): Promise<void> {
-    await CST.tab(output, indent);
+  async print(
+    output: BufferAPI.BufWriter,
+    indent: number = 0,
+    indentFirst: boolean = true,
+  ) {
+    if (indentFirst) await CST.tab(output, indent);
+
     await this.caseKeyword.print(output);
     await output.write(CST.PunctBytes.space);
-    await this.cond.print(output);
+
+    await this.cond.print(output, indent, false);
     await output.write(CST.PunctBytes.space);
 
     if (this.thenKeyword) {
@@ -525,7 +690,7 @@ export class Case implements CST.Node {
       await output.write(CST.PunctBytes.space);
     }
 
-    await this.body.print(output, indent);
+    await this.body.print(output, indent, false);
   }
 }
 
@@ -545,11 +710,15 @@ export class Else implements CST.Node {
     return CST.joinLocRange([this.keyword.loc(), this.body.loc()]);
   }
 
-  async print(output: BufferAPI.BufWriter, indent: number = 0): Promise<void> {
-    await CST.tab(output, indent);
+  async print(
+    output: BufferAPI.BufWriter,
+    indent: number = 0,
+    indentFirst: boolean = true,
+  ) {
+    if (indentFirst) await CST.tab(output, indent);
     await this.keyword.print(output);
     await output.write(CST.PunctBytes.space);
-    await this.body.print(output, indent);
+    await this.body.print(output, indent, false);
   }
 }
 
@@ -575,12 +744,16 @@ export class If implements CST.Node {
     return CST.joinLocRange(ranges);
   }
 
-  async print(output: BufferAPI.BufWriter, indent: number = 0): Promise<void> {
-    await this.self.print(output, indent);
+  async print(
+    output: BufferAPI.BufWriter,
+    indent: number = 0,
+    indentFirst: boolean = true,
+  ) {
+    await this.self.print(output, indent, indentFirst);
 
     if (this.else) {
       await output.write(CST.PunctBytes.space);
-      await this.else.print(output, indent);
+      await this.else.print(output, indent, false);
     }
   }
 }
@@ -589,6 +762,8 @@ export type Expr =
   | FFIStringLiteral
   | IntLiteral
   | Call
+  | ID
+  | Tuple
   | Block
   | If
   | ExplicitSafetyStatement;

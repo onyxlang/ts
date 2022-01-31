@@ -68,7 +68,19 @@ export async function tab(
  */
 export interface Node {
   loc(): peggy.LocationRange;
-  print(output: BufferAPI.BufWriter, indent: number): Promise<void>;
+
+  /**
+   * Print the node into source code.
+   *
+   * @param output      The output buffer
+   * @param indent      Indentation
+   * @param indentFirst If false, would omit the very first indentation
+   */
+  print(
+    output: BufferAPI.BufWriter,
+    indent: number,
+    indentFirst: boolean,
+  ): Promise<void>;
 }
 
 /**
@@ -108,6 +120,7 @@ export const PunctBytes = {
   /** `~` */ tilde: new Uint8Array([0x7E]),
   /** `$` */ dollar: new Uint8Array([0x24]),
   /** `` ` `` */ backtick: new Uint8Array([0x60]),
+  /** `*` */ asterisk: new Uint8Array([0x2A]),
 
   /** `(` */ openParen: new Uint8Array([0x28]),
   /** `)` */ closeParen: new Uint8Array([0x29]),
@@ -161,6 +174,6 @@ export async function print(
   indent: number = 0,
 ) {
   for (const node of nodes) {
-    await node.print(output, indent);
+    await node.print(output, indent, false);
   }
 }

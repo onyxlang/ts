@@ -1,0 +1,13 @@
+extern void puts(const char*);
+extern _Noreturn exit(int exit_code);
+
+def assert(expr : Bool, message : $`const char`*) : void {
+  if (eq?(expr, false)) {
+    unsafe! {
+      $puts(message)
+      $exit(1)
+    }
+  }
+}
+
+assert(true, $"Shall not be output")

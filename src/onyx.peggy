@@ -100,21 +100,62 @@ int_literal = $('0' / ([1-9] [0-9]*)) {
 // Expressions
 //
 
-expr = int_literal / ffi_str_lit / safety_stmt / if / block / call
+tuple = '(' sp? multiline:(ml / nl)? sp?
+  head:expr
+  tail:(term wsp? @expr)*
+  term? wsp? ')'
+{
+  return new nx.CST.Tuple({
+    location: location(),
+    multiline: !!multiline,
+    elements: [head].concat(tail)
+  });
+}
 
-id = $([a-zA-Z_] [a-zA-Z_0-9]* [!?]?) {
+expr = int_literal / ffi_str_lit / safety_stmt / if / tuple / block / call / id
+
+onyx_id =
+  wrapped:&'`'?
+  value:(
+    ('`' @$([^`\\] / "\\" .)* '`') /
+    $([a-zA-Z_] [a-zA-Z_0-9]* [!?]?)
+  )
+{
   return new nx.CST.ID(location(), text(), {
     kind: nx.CST.IDKind.COMMON,
-    wrapped: false,
-    value: text()
+    wrapped: !!wrapped,
+    value: value
   })
+}
+
+ffi_id =
+  '$'
+  wrapped:&'`'?
+  value:(
+    ('`' @$([a-zA-Z_] [a-zA-Z_0-9 ]*) '`') /
+    $([a-zA-Z_] [a-zA-Z_0-9]*)
+  )
+{
+  return new nx.CST.ID(location(), text(), {
+    kind: nx.CST.IDKind.FFI,
+    wrapped: !!wrapped,
+    value: value
+  })
+}
+
+id = ffi_id / onyx_id
+
+pointer_suffix = '*' { return new nx.CST.PointerSuffix(location(), text()) }
+
+type_ref = id:id pointerSuffixes:pointer_suffix* {
+  return new nx.CST.TypeRef({ id, pointerSuffixes})
 }
 
 // Variables
 //
 
-restriction = sp ':' sp id:id {
-  return new nx.CST.Restriction({ real: id })
+restriction = sp ':' sp real:type_ref {
+  return new nx.CST.Restriction({ real })
 }
 
 label = value:id ':' {
@@ -150,8 +191,9 @@ func_ion =
   id:id
   args:func_ion_args_decl
   restriction:restriction?
+  body:(nadj? @block)?
 {
-  return new nx.CST.FuncIon({ builtin, action, id, args, restriction })
+  return new nx.CST.FuncIon({ builtin, action, id, args, restriction, body })
 }
 
 kwarg = label:label nadj expr:expr {
@@ -159,8 +201,8 @@ kwarg = label:label nadj expr:expr {
 }
 
 call_args = '(' sp? multiline:(ml / nl)?
-  head:(expr / kwarg)
-  tail:(wsp? "," wsp? @(expr / kwarg))*
+  head:(kwarg / expr)
+  tail:(wsp? "," wsp? @(kwarg / expr))*
   wsp? ')'
 {
   return new nx.CST.CallArgs({
@@ -170,7 +212,7 @@ call_args = '(' sp? multiline:(ml / nl)?
   });
 }
 
-call = callee:(ffi_id / id) args:call_args {
+call = callee:id args:call_args {
   return new nx.CST.Call({ callee, args })
 }
 
@@ -244,14 +286,6 @@ c_proto = returnType:c_type sp id:c_id sp? args:c_proto_args sp? c_term {
 
 extern_drct = keyword:kw_extern sp value:c_proto {
   return new nx.CST.Extern({ keyword, value })
-}
-
-ffi_id = '$' cId:c_id {
-  return new nx.CST.ID(location(), text(), {
-    kind: nx.CST.IDKind.FFI,
-    wrapped: false,
-    value: cId.raw
-  })
 }
 
 ffi_str_lit = '$' '"' value:$([^"\\] / "\\" .)* '"' {

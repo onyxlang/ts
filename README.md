@@ -101,17 +101,47 @@ final promise = Scheduler.parallel([list]() ~> {
 These are just a few of the differences when compared to Typescript.
 Further documentation to come!
 
-## Current state
+## Current stage
 
-This is a stage one implementation effort, with an aim for stage two when the compiler would be written in Onyx with zero dependencies.
+A _stage_ is defined by the a set of rules in no particular order.
+This is a stage 1 implementation effort.
 
-I've chosen [Typescript](https://www.typescriptlang.org/) for implementation, as I would prefer faster development cycles over performance considerations for the first stage.
-Typescript has great tooling, which also acts as an example for the Onyx future.
+### Stage 1:
 
-The first stage is merely a translator from Onyx code to [Zig](https://github.com/ziglang/zig).
-Zig was chosen for its cross-platform capabilities.
+1. Compiler logic (i.e. _frontend_) is written in [Typescript](https://www.typescriptlang.org), utilizing [Peggyjs](https://github.com/vladfaust/peggy).
+1. [Zig](https://github.com/ziglang/zig) is used as the _backend_: Onyx source code is translated to Zig source code.
+1. Host machine is expected to have Zig installed on it.
+1. [Deno](https://deno.land) is assumed the development environment.
+1. Development speed > runtime performance > correctness.
+    1. Macros are not implemented.
+    1. Panics are shallow and incomplete.
+1. May assume that target is a mainstream Windows, Linux or MacOS machine.
+1. Target may rely on Zig standard library.
 
-A compiler executable is ought to be assembled by [Deno](https://deno.land/), it uses Deno types and packages.
+### Stage 2:
+
+1. Compiler logic (i.e. _frontend_) is written in Onyx.
+1. [Zig](https://github.com/ziglang/zig) is used as the _backend_: Onyx source code is translated to Zig source code.
+1. Host machine is expected to have Zig installed on it.
+1. Development speed > correctness > runtime performance.
+    1. Macros are not implemented.
+1. May assume that target is a mainstream Windows, Linux or MacOS machine.
+1. Target may rely on Zig standard library.
+
+### Stage 3:
+
+1. Compiler logic (i.e. _frontend_) is written in Onyx.
+1. [Zig](https://github.com/ziglang/zig) is used as the _backend_: Onyx source code is translated to Zig source code internally.
+1. _(Extraneous)_ Host machine is expected to have Zig installed on it.[^1]
+1. Correctness > development speed > runtime performance.
+1. Target may rely on Zig standard library.
+
+[^1]: By that time Zig could become linkable as a static library.
+
+### Stage 4:
+
+1. Compiler is written in Onyx.
+1. Correctness > (developer happiness = runtime performance).
 
 ## License
 

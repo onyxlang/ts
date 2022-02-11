@@ -2,25 +2,27 @@
 
 _Enjoy the performance._
 
-## About
+## 👋 About
 
 Onyx is a fresh programming language with efficiency in mind.
 This repository contains the reference Onyx compiler implementation.
 
-### History
+<details>
+  <summary>Brief history</summary>
+  <br />
+  Ever had that feeling of creating a game, but then remembering how painful it is to write in C++?
+  Any other language doesn't seem just the right tool?
+  Want something new?
+  <br /><br />
+  The first idea of Onyx came to me in 2020, at the very peak of my Open Source career.
+  Coming all the way from Warcraft® III™ map editor to Crystal, I am still struggling to find the most comfortable language for daily use.
+  <br /><br />
+  What I want is a language which I would consider perfect.
+  A language with a perfectly built ecosystem and organization.
+  A language with infinite possibilities.
+</details>
 
-Ever had that feeling of creating a game, but then remembering how painful it is to write in C++?
-Any other language doesn't seem just the right tool?
-Want something new?
-
-The first idea of Onyx came to me in 2020, at the very peak of my Open Source career.
-Coming all the way from Warcraft® III™ map editor to Crystal, I am still struggling to find the most comfortable language for daily use.
-
-What I want is a language which I would consider perfect.
-A language with a perfectly built ecosystem and organization.
-A language with infinite possibilities.
-
-## Features
+## ✨ Features
 
 Formally speaking, Onyx is an inference-typed imperative multiparadigmal computer programming language.
 
@@ -101,12 +103,12 @@ final promise = Scheduler.parallel([list]() ~> {
 These are just a few of the differences when compared to Typescript.
 Further documentation to come!
 
-## Current stage
+## 🚧 Development
 
 A _stage_ is defined by the a set of rules in no particular order.
-This is a stage 1 implementation effort.
+Currently, the compiler is at the **stage I** implementation effort.
 
-### Stage 1:
+### Stage I: ⬅️
 
 1. Compiler logic (i.e. _frontend_) is written in [Typescript](https://www.typescriptlang.org), utilizing [Peggyjs](https://github.com/vladfaust/peggy).
 1. [Zig](https://github.com/ziglang/zig) is used as the _backend_: Onyx source code is translated to Zig source code.
@@ -118,7 +120,7 @@ This is a stage 1 implementation effort.
 1. May assume that target is a mainstream Windows, Linux or MacOS machine.
 1. Target may rely on Zig standard library.
 
-### Stage 2:
+### Stage II:
 
 1. Compiler logic (i.e. _frontend_) is written in Onyx.
 1. [Zig](https://github.com/ziglang/zig) is used as the _backend_: Onyx source code is translated to Zig source code.
@@ -128,7 +130,7 @@ This is a stage 1 implementation effort.
 1. May assume that target is a mainstream Windows, Linux or MacOS machine.
 1. Target may rely on Zig standard library.
 
-### Stage 3:
+### Stage III:
 
 1. Compiler logic (i.e. _frontend_) is written in Onyx.
 1. [Zig](https://github.com/ziglang/zig) is used as the _backend_: Onyx source code is translated to Zig source code internally.
@@ -138,11 +140,11 @@ This is a stage 1 implementation effort.
 
 [^1]: By that time Zig could become linkable as a static library.
 
-### Stage 4:
+### Stage IV:
 
 1. Compiler is written in Onyx.
 1. Correctness > (developer happiness = runtime performance).
 
-## License
+## 📜 License
 
 Any contribution to this repository is MIT licensed in accordance to [GitHub ToS § 6](https://docs.github.com/en/github/site-policy/github-terms-of-service#6-contributions-under-repository-license).

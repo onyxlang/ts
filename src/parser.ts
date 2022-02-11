@@ -1,5 +1,5 @@
-// @deno-types="https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.d.ts"
-import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.js";
+// @deno-types="https://raw.githubusercontent.com/onyxlang/peggy/cjs-to-es15/lib/peg.d.ts"
+import peggy from "https://raw.githubusercontent.com/onyxlang/peggy/cjs-to-es15/lib/peg.js";
 
 import * as BufferAPI from "https://deno.land/std@0.123.0/io/buffer.ts";
 import { StringWriter } from "https://deno.land/std@0.123.0/io/writers.ts";

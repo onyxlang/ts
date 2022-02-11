@@ -110,7 +110,7 @@ Currently, the compiler is at the **stage I** implementation effort.
 
 ### Stage I: ⬅️
 
-1. Compiler logic (i.e. _frontend_) is written in [Typescript](https://www.typescriptlang.org), utilizing [Peggyjs](https://github.com/vladfaust/peggy).
+1. Compiler logic (i.e. _frontend_) is written in [Typescript](https://www.typescriptlang.org), utilizing [Peggyjs](https://github.com/onyxlang/peggy).
 1. [Zig](https://github.com/ziglang/zig) is used as the _backend_: Onyx source code is translated to Zig source code.
 1. Host machine is expected to have Zig installed on it.
 1. [Deno](https://deno.land) is assumed the development environment.

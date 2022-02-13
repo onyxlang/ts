@@ -1,27 +1,93 @@
-// @deno-types="https://raw.githubusercontent.com/onyxlang/peggy/cjs-to-es15/lib/peg.d.ts"
-import peggy from "https://raw.githubusercontent.com/onyxlang/peggy/cjs-to-es15/lib/peg.js";
+// @deno-types="https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.d.ts"
+import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.js";
 
-import * as BufferAPI from "https://deno.land/std@0.123.0/io/buffer.ts";
-import { StringWriter } from "https://deno.land/std@0.123.0/io/writers.ts";
+// IDEA:
+//
+// ```nx
+// namespace Onyx {
+//   import * as CST from "./onyx/cst.nx";
+//   import * as Lang from "./onyx/lang.nx";
+//   final foo = 42 # Implicitly static
+//   decl bar()     # Ditto
+// }
+// ```
+//
 
-import * as OnyxCST from "./onyx/cst.ts";
-import * as CCST from "./c/cst.ts";
-import * as CST from "./cst.ts";
-import { Keyword as OnyxKeyword, Safety } from "./onyx/lang.ts";
-import { Keyword as CKeyword } from "./c/lang.ts";
+import * as OnyxAST from "./onyx/ast.ts";
+import * as OnyxLang from "./onyx/lang.ts";
+import * as CAST from "./c/ast.ts";
+import * as CLang from "./c/lang.ts";
+import * as GenAST from "./ast.ts";
+
 import Panic from "./panic.ts";
 
-const grammarSourcePath = "src/onyx.peggy";
+function copyLocationRange(source: peggy.LocationRange): peggy.LocationRange {
+  return {
+    source: source.source,
+    start: {
+      line: source.start.line,
+      column: source.start.column,
+      offset: source.start.offset,
+    },
+    end: {
+      line: source.end.line,
+      column: source.end.column,
+      offset: source.end.offset,
+    },
+  };
+}
+
+export function joinLocationRanges(
+  ranges: peggy.LocationRange[],
+): peggy.LocationRange {
+  const result = copyLocationRange(ranges[0]);
+
+  for (const range of ranges) {
+    if (result.source !== range.source) {
+      throw Error(
+        `Location source mismatch upon joining them: ${result.source} vs. ${range.source}`,
+      );
+    }
+
+    if (range.start.line < result.start.line) {
+      result.start.line = range.start.line;
+      result.start.column = range.start.column;
+    } else if (
+      range.start.line === result.start.line &&
+      range.start.column < result.start.column
+    ) {
+      result.start.column = range.start.column;
+    }
+
+    if (range.end.line > result.end.line) {
+      result.end.line = range.end.line;
+      result.end.column = range.end.column;
+    } else if (
+      range.end.line === result.end.line &&
+      range.end.column > result.end.column
+    ) {
+      result.end.column = range.end.column;
+    }
+  }
+
+  return result;
+}
+
+const trace = false; // Change to enable tracing
+
+const grammarSourcePath = "src/grammar/onyx.peggy";
 const grammarSource = await Deno.readTextFile(grammarSourcePath);
 const pegParser = peggy.generate(grammarSource, {
-  // trace: true, // Uncomment to enable tracing
-  // grammarSource,
+  allowedStartRules: ["top_level"],
   plugins: [
     {
       use(_: peggy.Config, options: any) {
-        options.poly = { CST }; // "poly" stands for "polyglot"
-        options.nx = { CST: OnyxCST, Keyword: OnyxKeyword, Safety };
-        options.c = { CST: CCST, Keyword: CKeyword };
+        options.Onyx = { AST: OnyxAST, Lang: OnyxLang };
+        options.C = { AST: CAST, Lang: CLang };
+        options.Generic = { AST: GenAST };
+        options.util = {
+          joinLocationRanges,
+        };
       },
     },
   ],
@@ -32,11 +98,17 @@ const pegParser = peggy.generate(grammarSource, {
  * @param filePath Path to source file
  * @returns The parsed CST.
  */
-export default async function parse(filePath: string): Promise<OnyxCST.Any[]> {
+export default async function parse(
+  filePath: string,
+): Promise<OnyxAST.Node[]> {
   const input = await Deno.readTextFile(filePath);
 
   try {
-    return pegParser.parse(input, { grammarSource: filePath });
+    return pegParser.parse(input, {
+      grammarSource: filePath,
+      startRule: "top_level",
+      trace,
+    });
   } catch (e: any) {
     if (typeof e.format === "function") {
       await new Panic(
@@ -49,18 +121,4 @@ export default async function parse(filePath: string): Promise<OnyxCST.Any[]> {
       throw e;
     }
   }
-}
-
-export async function parseToString(filePath: string): Promise<string> {
-  const cst = await parse(filePath);
-
-  const writer = new StringWriter();
-  const buf = new BufferAPI.BufWriter(writer);
-
-  for (const node of cst) {
-    await node.print(buf);
-  }
-
-  buf.flush();
-  return writer.toString();
 }

@@ -2,7 +2,8 @@ import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 import * as BufferAPI from "https://deno.land/std@0.123.0/io/buffer.ts";
 import Program from "./program.ts";
 import * as OnyxAST from "./onyx/ast.ts";
-import * as OnyxCST from "./onyx/cst.ts";
+import * as OnyxDST from "./onyx/dst.ts";
+import * as Lang from "./onyx/lang.ts";
 import parse from "./parser.ts";
 
 // IDEA: Would be nice to have this syntax in Onyx:
@@ -27,43 +28,33 @@ import parse from "./parser.ts";
 
 /** An Onyx compilation unit. */
 export default class Unit {
-  private _program: Program;
-  private _filePath: string;
-
-  private _cst?: OnyxCST.Any[];
-  private _topLevel?: OnyxAST.TopLevel;
-
-  _loweredModulePath?: string;
+  readonly program: Program;
+  readonly filePath: string;
+  private _ast?: OnyxAST.Node[];
+  private _dst?: OnyxDST.TopLevel;
+  private _loweredModulePath?: string;
 
   loweredModulePath(): string {
     if (!this._loweredModulePath) {
       throw new Error(
-        "The unit at " + this._filePath + " hasn't been lowered yet",
+        "The unit at " + this.filePath + " hasn't been lowered yet",
       );
     } else {
       return this._loweredModulePath;
     }
   }
 
-  program(): Program {
-    return this._program;
-  }
-
-  filePath(): string {
-    return this._filePath;
-  }
-
   parsed(): boolean {
-    return !!this._cst;
+    return !!this._ast;
   }
 
   compiled(): boolean {
-    return !!this._topLevel;
+    return !!this._dst;
   }
 
   constructor(program: Program, path: string) {
-    this._program = program;
-    this._filePath = path;
+    this.program = program;
+    this.filePath = path;
   }
 
   async parse() {
@@ -71,31 +62,22 @@ export default class Unit {
       return; // Already parsed
     }
 
-    this._cst = await parse(this._filePath);
+    this._ast = await parse(this.filePath);
   }
 
   compile() {
-    if (this.compiled()) {
-      return; // Already compiled
-    }
+    if (!this.parsed()) this.parse();
+    this._dst = new OnyxDST.TopLevel(this);
 
-    if (!this.parsed()) {
-      throw Error("The unit's CST isn't parsed yet");
-    }
-
-    this._topLevel = new OnyxAST.TopLevel(this);
-
-    for (const node of this._cst!) {
-      this._topLevel.compile(node);
+    for (const node of this._ast!) {
+      node.resolve(this._dst);
     }
   }
 
   async lower(): Promise<string> {
-    if (!this.compiled()) {
-      throw Error(`Unit at ${this._filePath} hasn't been compiled yet`);
-    }
+    if (!this.compiled()) this.compile();
 
-    const output_path = await this._program.cachePath(this._filePath, ".zig");
+    const output_path = await this.program.cachePath(this.filePath, ".zig");
     console.debug(`Lowering to ${output_path}`);
 
     Deno.mkdir(pathAPI.dirname(output_path), { recursive: true });
@@ -109,7 +91,7 @@ export default class Unit {
     const buf = new BufferAPI.BufWriter(file);
 
     try {
-      await this._topLevel!.lower(buf);
+      await this._dst!.lower(buf, { safety: Lang.Safety.FRAGILE });
       buf.flush();
       this._loweredModulePath = output_path;
     } finally {

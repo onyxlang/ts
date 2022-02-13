@@ -1,29 +1,51 @@
 export enum Keyword {
-  EXTERN = "extern",
+  // Safety
+  //
 
-  DEF = "def",
+  UNSAFE = "unsafe",
+  FRAGILE = "fragile",
+  THREADSAFE = "threadsafe",
+
+  // Well-known modifiers
+  //
+
   BUILTIN = "builtin",
+
+  // Directives
+  //
+
+  EXTERN = "extern",
+  FINAL = "final",
+  DEF = "def",
+  STRUCT = "struct",
+
+  // Statements
+  //
 
   IF = "if",
   THEN = "then",
   ELIF = "elif",
   ELSE = "else",
 
-  UNSAFE = "unsafe",
-  FRAGILE = "fragile",
-  THREADSAFE = "threadsafe",
+  // Instructions
+  //
 
-  UNSAFE_BANG = "unsafe!",
-  FRAGILE_BANG = "fragile!",
-  THREADSAFE_BANG = "threadsafe!",
+  RETURN = "return",
 }
 
 export enum Safety {
-  UNSAFE,
-  FRAGILE,
-  THREADSAFE,
+  UNSAFE = "unsafe",
+  FRAGILE = "fragile",
+  THREADSAFE = "threadsafe",
 }
 
-export enum FuncAction {
-  Def = "def",
+export enum Storage {
+  STATIC = "static",
+  INSTANCE = "instance",
+  LOCAL = "local",
+}
+
+export enum Access {
+  STATIC = "::",
+  INSTANCE = ".",
 }

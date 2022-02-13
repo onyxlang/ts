@@ -16,14 +16,8 @@ function run(path: string) {
   return Deno.run({ cmd });
 }
 
-Deno.test("hello-world spec", async () => {
-  const p = run("spec/hello-world.nx");
-  if (!(await p.status()).success) Deno.exit(1);
-  p.close();
-});
-
-Deno.test("basic spec", async () => {
-  const p = run("spec/basic.nx");
+Deno.test("fib spec", async () => {
+  const p = run("spec/fib.nx");
   if (!(await p.status()).success) Deno.exit(1);
   p.close();
 });

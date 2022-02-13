@@ -1,10 +1,9 @@
 import yargs from "https://deno.land/x/yargs/deno.ts";
 import { Arguments } from "https://deno.land/x/yargs/deno-types.ts";
+import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 import compile from "./cli/compile.ts";
 import run from "./cli/run.ts";
-import format from "./cli/format.ts";
 import { replaceExt } from "./util.ts";
-import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 
 export default function (name: string, args: any) {
   return yargs(args)
@@ -57,31 +56,6 @@ export default function (name: string, args: any) {
         Deno.exit(result ? 0 : 1);
       },
     )
-    .command(
-      ["format <file>", "f <file>"],
-      "Format source file",
-      (yargs: any) => {
-        return yargs
-          .positional("file", {
-            describe: "an Onyx source file",
-          })
-          .option("output", {
-            alias: "o",
-            describe: "output file; if not set, would output to stdout",
-            type: "string",
-          });
-      },
-      async (argv: Arguments) => {
-        console.debug(argv);
-
-        const result = await format(
-          pathAPI.resolve(argv.file),
-          argv.output ? pathAPI.resolve(argv.output) : undefined,
-        );
-
-        Deno.exit(result ? 0 : 1);
-      },
-    )
     .option("zig", {
       describe: "Zig executable path",
       type: "string",
@@ -90,7 +64,7 @@ export default function (name: string, args: any) {
     .option("cache-dir", {
       describe: "Cache directory",
       type: "string",
-      default: pathAPI.join(".cache", "phoenix"),
+      default: pathAPI.join(".cache", "onyx"),
     })
     .demandCommand(1, "")
     .strict()

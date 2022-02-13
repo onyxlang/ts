@@ -1,2 +1,0 @@
-extern void puts(const char*);
-unsafe! $puts($"Hello, world!")

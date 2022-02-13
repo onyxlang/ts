@@ -1,5 +1,12 @@
-import { BufWriter } from "https://deno.land/std@0.123.0/io/buffer.ts";
+// @deno-types="https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.d.ts"
+import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.js";
 
-export interface Node {
-  lower(output: BufWriter, context: any): Promise<void>;
+export abstract class Node {
+  readonly location: peggy.LocationRange;
+  readonly text: string;
+
+  constructor(location: peggy.LocationRange, text: string) {
+    this.location = location;
+    this.text = text;
+  }
 }

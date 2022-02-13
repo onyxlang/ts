@@ -1,519 +1,830 @@
-import { Node } from "../ast.ts";
-import * as CST from "./cst.ts";
-import * as CAST from "../c/ast.ts";
-import Unit from "../unit.ts";
+// @deno-types="https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.d.ts"
+import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.js";
+import * as DST from "./dst.ts";
+import * as GenericDST from "../dst.ts";
 import * as Lang from "./lang.ts";
-import { BufWriter } from "https://deno.land/std@0.123.0/io/buffer.ts";
+import * as CAST from "../c/ast.ts";
+import * as CDST from "../c/dst.ts";
+import * as AST from "../ast.ts";
 import Panic, { Note } from "../panic.ts";
-import { stringToBytes } from "../util.ts";
 
-enum BuiltinFunction {
-  Int32Sum,
-  Int32Eq,
+// A top-level directive.
+type Directive = Extern;
+
+// A entity declaration.
+type Declaration = Final | Struct | Def;
+
+// A statement, like a sentence.
+type Statement = If | ExplicitSafety;
+
+// A single instruction, may be part of a statement.
+type Instruction = Return;
+
+// An rvalue may be directly used as an argument.
+type RVal = Call | ExplicitSafety | Literal | Instruction | ID;
+
+// A literal, like a "baked-in" source code value.
+type Literal = IntLiteral;
+
+// An expression may be a part of a block.
+type Expression = Declaration | Statement | RVal;
+
+// `trait Resolvable<T> derive Node`.
+interface Resolvable<T> {
+  resolve(syntax: DST.Scope, semantic?: any): T;
 }
 
-/**
- * A scope contains lookup-able entities.
- */
-abstract class Scope {
-  private _unit?: Unit;
-  private _parent?: Scope;
-  protected _safety: Lang.Safety;
+export interface Node {
+  resolve(syntax: DST.Scope, semantic?: any): any;
+}
 
-  protected _adjacentCommentNode?: CST.Comment;
-  protected _funcDefs = new Map<string, FunctionDef>();
+export class Extern extends AST.Node implements Resolvable<DST.Extern>, Node {
+  readonly keyword: AST.Node;
+  readonly value: CAST.Prototype;
 
   constructor(
-    unit: Unit | undefined,
-    parent: Scope | undefined,
-    safety: Lang.Safety,
+    location: peggy.LocationRange,
+    text: string,
+    { keyword, value }: { keyword: AST.Node; value: CAST.Prototype },
   ) {
-    this._unit = unit;
-    this._parent = parent;
-    this._safety = safety;
+    super(location, text);
+    this.keyword = keyword;
+    this.value = value;
   }
 
-  unit(): Unit {
-    if (this._unit) return this._unit;
-    else if (this._parent) return this._parent.unit();
-    else throw new Error("A scope must have either `_unit` or `_parent` set");
-  }
-
-  safety(): Lang.Safety {
-    return this._safety;
-  }
-
-  protected compile(node: CST.Any) {
-    let setCommentNode = false;
-
-    if (node instanceof CST.Comment) {
-      this._adjacentCommentNode = node;
-      setCommentNode = true;
-    } //
-
-    //
-    else if (
-      node instanceof CST.poly.Newline || node instanceof CST.poly.Multiline
-    ) {
-      // Skip empty spaces.
-    } //
-
-    //
-    else if (node instanceof CST.Extern) {
+  resolve(syntax: DST.TopLevel, _semantic?: any): DST.Extern {
+    if (!(syntax instanceof DST.TopLevel)) {
       throw new Panic(
-        "An `extern` directive is illegal in this scope",
-        node.keyword.loc(),
+        "Can only extern at the top-level scope",
+        this.keyword.location,
       );
-    } //
-
-    //
-    else if (node instanceof CST.FuncIon) {
-      const def = FunctionDef.compile(this, node);
-      this.addFuncDef(def);
-    } //
-
-    //
-    else if (node instanceof CST.VarIon) {
-      throw new Error("Varion compilation isn't implemented yet");
-    } //
-
-    //
-    else if (
-      node instanceof CST.ExplicitSafetyStatement ||
-      node instanceof CST.IntLiteral ||
-      node instanceof CST.FFIStringLiteral ||
-      node instanceof CST.Call || node instanceof CST.Block
-    ) {
-      throw new Panic("An expression is illegal in this scope", node.loc());
     }
 
-    if (!setCommentNode) this._adjacentCommentNode = undefined;
+    const resolved = this.value.resolve(syntax.cDST());
+    const dst = new DST.Extern(this, resolved);
+    syntax.externs.push(dst);
+    return dst;
+  }
+}
+
+export class Struct extends AST.Node
+  implements Resolvable<DST.StructDef>, Node {
+  readonly modifiers: AST.Node[];
+  readonly id: AST.Node;
+  readonly body: Block;
+
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { modifiers, id, body }: {
+      modifiers: AST.Node[];
+      id: AST.Node;
+      body: Block;
+    },
+  ) {
+    super(location, text);
+    this.modifiers = modifiers;
+    this.id = id;
+    this.body = body;
   }
 
-  /**
-   * @throws Panic if the ID is already declared.
-   */
-  protected addFuncDef(def: FunctionDef) {
-    const found = this.syntaxLookup(def.cstNode.idToken);
+  resolve(syntax: DST.Scope, _semantic?: any): DST.StructDef {
+    const found = syntax.lookup(this.id);
 
     if (found) {
       throw new Panic(
-        `Already declared id \`${def.cstNode.idToken.value}\``,
-        def.cstNode.idToken.loc(),
-        [new Note("Previously declared here", found.cstNode.idToken.loc())],
+        `Already declared \`${this.id.text}\``,
+        this.id.location,
+        [new Note("Previously declared here", found.idNode().location)],
       );
     }
 
-    this._funcDefs.set(def.cstNode.idToken.value, def);
+    // TODO: `@builtin` is `Modifier` node, can be looked up
+    // in the well-known struct modifiers list.
+    //
+
+    let builtin: DST.BuiltinStruct | undefined;
+    if (this.modifiers.find((m) => m.text === "@builtin")) {
+      builtin = (<any> DST.BuiltinStruct)[this.id.text];
+
+      if (!builtin) {
+        throw new Panic(
+          `Unrecognized builtin struct \`${this.id.text}\``,
+          this.id.location,
+        );
+      }
+    }
+
+    const dst = new DST.StructDef(syntax, this, this.id.text, builtin);
+    syntax.store(dst);
+
+    for (const def of this.body.body) {
+      if (def instanceof Def) {
+        this.resolveMethod(dst, def);
+      } else {
+        throw new Panic("A struct may only contain methods", def.location);
+      }
+    }
+
+    return dst;
   }
 
-  syntaxLookup(id: CST.ID): FunctionDef | undefined {
-    const found = this._funcDefs.get(id.value);
+  resolveMethod(dst: DST.StructDef, def: Def): DST.FunctionDef {
+    const found = dst.lookup(def.id);
 
-    if (found) return found;
-    else if (this._parent) return this._parent.syntaxLookup(id);
-    else return undefined;
+    if (found) {
+      throw new Panic(`Already defined \`${found.id}\``, def.id.location, [
+        new Note(`Previously defined here`, found.astNode.id.location),
+      ]);
+    }
+
+    return dst.store(def.resolve(dst)) as DST.FunctionDef;
   }
 }
 
-class Block extends Scope implements Node {
-  /** It won't be set for the top-level code block. */
-  protected _cstNode?: CST.Block;
-
-  private _exprs = new Array<Expr>();
+export class DefArg extends AST.Node
+  implements Resolvable<DST.VariableDef>, Node {
+  readonly id: AST.Node;
+  readonly type: CID | ID | Query;
+  readonly value?: RVal;
 
   constructor(
-    cstNode: CST.Block | undefined,
-    parent: Scope,
+    location: peggy.LocationRange,
+    text: string,
+    { id, type, value }: {
+      id: AST.Node;
+      type: CID | ID | Query;
+      value?: RVal;
+    },
   ) {
-    super(undefined, parent, parent.safety());
-    this._cstNode = cstNode;
+    super(location, text);
+    this.id = id;
+    this.type = type;
+    this.value = value;
   }
 
-  compile(node: CST.Any): Expr | undefined {
-    let result: Expr | undefined;
+  resolve(
+    syntax: DST.Scope,
+    semantic: DST.FunctionDef,
+  ): DST.VariableDef {
+    const found = semantic.args.get(this.id.text);
+
+    if (found) {
+      throw new Panic(
+        `Already declared argument \`${this.id.text}\``,
+        this.id.location,
+        [new Note(`Previously declared here`, found.idNode().location)],
+      );
+    }
+
+    const restriction = syntax.find(this.type);
+    if (!(restriction instanceof DST.StructDef)) {
+      throw new Panic(
+        `Argument restriction must be a struct ID`,
+        restriction.astNode.location,
+      );
+    }
+
+    const value = this.value
+      ? ensureRVal(this.value!.resolve(syntax), this.value!.location)
+      : undefined;
+
+    const variable = new DST.VariableDef(
+      this,
+      this.id.text,
+      new DST.Ref(this.type, restriction),
+      value,
+    );
+
+    // FIXME: Shall move the set logic into the scope itself.
+    semantic.args.set(this.id.text, variable);
+
+    return variable;
+  }
+}
+
+export class Def extends AST.Node implements Resolvable<DST.FunctionDef>, Node {
+  readonly modifiers: AST.Node[];
+  /** `def` */ readonly keyword: AST.Node;
+  readonly id: AST.Node;
+  readonly args: DefArg[];
+  readonly returnType?: CID | ID | Query;
+  readonly body?: Block;
+
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { modifiers = [], keyword, id, args, returnType, body }: {
+      modifiers: AST.Node[];
+      keyword: AST.Node;
+      id: AST.Node;
+      args: DefArg[];
+      returnType?: CID | ID | Query;
+      body?: Block;
+    },
+  ) {
+    super(location, text);
+    this.modifiers = modifiers;
+    this.keyword = keyword;
+    this.id = id;
+    this.args = args;
+    this.returnType = returnType;
+    this.body = body;
+  }
+
+  resolve(syntax: DST.Scope, _semantic?: any): DST.FunctionDef {
+    let builtin: DST.BuiltinFunction | undefined;
+    let storage: Lang.Storage;
+    const safety = Lang.Safety.FRAGILE;
+
+    const returnType = this.returnType?.resolve(syntax);
 
     if (
-      node instanceof CST.Comment || node instanceof CST.poly.Newline ||
-      node instanceof CST.poly.Multiline || node instanceof CST.Extern ||
-      node instanceof CST.FuncIon || node instanceof CST.VarIon
+      returnType !== undefined && !(returnType.target instanceof DST.StructDef)
     ) {
-      super.compile(node);
-    } //
-
-    //
-    else if (node instanceof CST.ExplicitSafetyStatement) {
-      const previousSafety = this._safety;
-      this._safety = node.safety(); // Temporarily change the block's safety
-      result = this.compile(node.content);
-      this._safety = previousSafety; // Restore the original safety
-    } //
-
-    //
-    else if (node instanceof CST.IntLiteral) {
-      result = new IntLiteral(node);
-    } //
-
-    //
-    else if (node instanceof CST.FFIStringLiteral) {
-      result = new FFIStringLiteral(node);
-    } //
-
-    //
-    else if (node instanceof CST.Call) {
-      result = Call.compile(this, node);
-      this._exprs.push(result as Expr);
-    } //
-
-    //
-    else if (node instanceof CST.Block) {
-      result = new Block(node, this);
-
-      for (const child of node.nodes) {
-        result.compile(child);
-      }
-
-      this._exprs.push(result as Expr);
-    } //
-
-    //
-    else if (node instanceof CST.If) {
-      result = If.compile(this, node);
-      this._exprs.push(result as Expr);
-    } //
-
-    //
-    else {
-      throw new Error("Unhandled CST node type: " + Deno.inspect(node));
-    }
-
-    return result;
-  }
-
-  async lower(output: BufWriter, _context?: any) {
-    for (const expr of this._exprs) {
-      await expr.lower(output);
-    }
-  }
-}
-
-/**
- * The top-level block.
- */
-export class TopLevel extends Scope implements Node {
-  private _cAST: CAST.Root;
-  _implicitMain: Block;
-
-  constructor(unit: Unit) {
-    super(unit, undefined, Lang.Safety.FRAGILE);
-    this._implicitMain = new Block(undefined, this);
-    this._cAST = new CAST.Root();
-  }
-
-  compile(node: CST.Any) {
-    // Extern is only allowed in the top level.
-    if (node instanceof CST.Extern) {
-      const proto = this.unit().program().compileCProto(node.value);
-      this._cAST.children.push(proto);
-    } //
-
-    // These nodes are common for any scope.
-    else if (
-      node instanceof CST.Comment || node instanceof CST.poly.Newline ||
-      node instanceof CST.poly.Multiline || node instanceof CST.FuncIon ||
-      node instanceof CST.VarIon
-    ) {
-      super.compile(node);
-    } //
-
-    // Expression nodes are courtesy of the implicit main block.
-    else if (
-      node instanceof CST.ExplicitSafetyStatement ||
-      node instanceof CST.IntLiteral ||
-      node instanceof CST.FFIStringLiteral ||
-      node instanceof CST.Call || node instanceof CST.Block ||
-      node instanceof CST.If
-    ) {
-      this._implicitMain.compile(node);
-    } //
-
-    //
-    else {
-      throw new Error("Unhandled CST node type: " + Deno.inspect(node));
-    }
-  }
-
-  syntaxLookup(id: CST.ID): FunctionDef | undefined {
-    // TODO: Lookup in imports.
-    //
-
-    const found = this._funcDefs.get(id.value);
-
-    if (found) return found;
-    else return undefined;
-  }
-
-  async lower(output: BufWriter, _context?: any) {
-    await this._cAST.lower(output);
-
-    for (const funcDef of this._funcDefs) {
-      await funcDef[1].lower(output);
-    }
-
-    await output.write(stringToBytes("pub fn main() void {\n"));
-    await this._implicitMain.lower(output);
-    await output.write(stringToBytes("}"));
-  }
-}
-
-class FunctionDef implements Node {
-  cstNode: CST.FuncIon;
-  builtin: BuiltinFunction;
-
-  /**
-   * NOTE: The node def isn't added to the _scope_ yet.
-   */
-  static compile(scope: Scope, cstNode: CST.FuncIon): FunctionDef {
-    const found = scope.syntaxLookup(cstNode.idToken);
-
-    if (found) {
       throw new Panic(
-        `Already declared id \`${cstNode.idToken.value}\``,
-        cstNode.idToken.loc(),
-        [new Note("Previously declared here", found.cstNode.idToken.loc())],
+        `Expected function return type, got \`${returnType.idNode().text}\``,
+        this.returnType!.location,
       );
     }
 
-    if (cstNode.idToken.value == "sum") {
-      return new FunctionDef(cstNode, BuiltinFunction.Int32Sum);
-    } else if (cstNode.idToken.value == "eq?") {
-      return new FunctionDef(cstNode, BuiltinFunction.Int32Eq);
-    } else {
-      throw new Panic(
-        "Custom function definitions aren't implemented yet",
-        cstNode.idToken.loc(),
-      );
-    }
-  }
+    const builtinModifier = this.modifiers.find((m) => m.text == "@builtin");
 
-  private constructor(cstNode: CST.FuncIon, builtin: BuiltinFunction) {
-    this.cstNode = cstNode;
-    this.builtin = builtin;
-  }
-
-  async lower(_output: BufWriter, _context?: any) {
-    // Noop for now.
-  }
-}
-
-class IntLiteral implements Node {
-  cstNode: CST.IntLiteral;
-
-  constructor(cstNode: CST.IntLiteral) {
-    this.cstNode = cstNode;
-  }
-
-  async lower(output: BufWriter, _context?: any) {
-    await output.write(stringToBytes(this.cstNode.raw));
-  }
-}
-
-class FFIStringLiteral implements Node {
-  cstNode: CST.FFIStringLiteral;
-
-  constructor(cstNode: CST.FFIStringLiteral) {
-    this.cstNode = cstNode;
-  }
-
-  async lower(output: BufWriter, _context?: any) {
-    await output.write(stringToBytes(`"${this.cstNode.value}"`));
-  }
-}
-
-class Call implements Node {
-  cstNode: CST.Call;
-  callee: CAST.Proto | FunctionDef;
-  args: Expr[];
-
-  static compile(block: Block, cstNode: CST.Call): Call {
-    let callee;
-
-    switch (cstNode.callee.kind) {
-      case CST.IDKind.COMMON: {
-        callee = block.syntaxLookup(cstNode.callee);
-
-        if (!callee) {
+    if (builtinModifier) {
+      if (syntax instanceof DST.StructDef) {
+        if (!returnType) {
           throw new Panic(
-            `Undeclared \`${cstNode.callee.value}\``,
-            cstNode.callee.loc(),
+            `A builtin function must have its return type declared`,
+            builtinModifier.location,
           );
         }
 
-        break;
-      }
-      case CST.IDKind.FFI: {
-        if (block.safety() > Lang.Safety.UNSAFE) {
+        storage = Lang.Storage.INSTANCE;
+
+        // TODO: Generalize.
+        const lookup = `${syntax.id}::${this.id.text}(${
+          this.args.map((arg) => arg.type.text).join(`, `)
+        }): ${this.returnType!.text}`;
+
+        builtin = (<any> DST.BuiltinFunction)[lookup];
+
+        if (builtin === undefined) {
           throw new Panic(
-            "An FFI call requires unsafe context",
-            cstNode.callee.loc(),
-          );
-        }
-
-        callee = block.unit().program().findCProto(cstNode.callee);
-        break;
-      }
-      case CST.IDKind.LABEL:
-      case CST.IDKind.SYMBOL:
-        throw Error("Invalid ID kind for a callee: " + cstNode.callee.kind);
-    }
-
-    const args = callee instanceof CAST.Proto
-      ? new Array<Expr>(callee.args.length)
-      : new Array<Expr>();
-
-    let i = 0;
-
-    for (const _arg of cstNode.args.args) {
-      if (_arg instanceof CST.KWArg) {
-        if (callee instanceof CAST.Proto) {
-          const found = callee.argsMap.get(_arg.label.value);
-
-          if (found) {
-            args[found.index] = block.compile(_arg.value)!;
-          } else {
-            throw new Panic(
-              `Undeclared argument \`${_arg.label.value}\` for C function \`${callee.id()}\``,
-              _arg.label.loc(),
-            );
-          }
-        } else {
-          throw new Error(
-            "Named arguments for Onyx functions aren't implemented yet",
+            `Unrecognized builtin function \`${lookup}\``,
+            this.id.location,
           );
         }
       } else {
-        args[i++] = block.compile(_arg)!;
+        throw new Panic(
+          `Unrecognized builtin function \`${this.id.text}\``,
+          this.id.location,
+        );
+      }
+    } else {
+      if (!this.body) {
+        throw new Panic(`Function body expected`, this.location);
+      }
+
+      if (syntax instanceof DST.StructDef) storage = Lang.Storage.INSTANCE;
+      else if (syntax instanceof DST.Block) storage = Lang.Storage.LOCAL;
+      else if (syntax instanceof DST.TopLevel) {
+        storage = Lang.Storage.STATIC;
+      } else throw new Error("Unreachable");
+    }
+
+    const dst = new DST.FunctionDef({
+      parent: syntax,
+      astNode: this,
+      id: this.id.text,
+      storage,
+      safety,
+      returnType,
+      builtin,
+    });
+
+    for (const arg of this.args) {
+      arg.resolve(syntax, dst);
+    }
+
+    // Shall store before compiling the body to make self-lookup possible.
+    syntax.store(dst);
+
+    if (builtin === undefined) {
+      dst.body = new DST.Block(this.body!, syntax, safety, dst);
+
+      for (const expr of this.body!.body) {
+        dst.body.store(expr.resolve(dst.body, undefined));
       }
     }
 
-    return new Call(cstNode, callee, args);
+    return dst;
+  }
+}
+
+export class Block extends AST.Node implements Resolvable<DST.Block> {
+  readonly body: Expression[];
+
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { body }: { body: Expression[] },
+  ) {
+    super(location, text);
+    this.body = body;
   }
 
-  private constructor(
-    cstNode: CST.Call,
-    callee: CAST.Proto | FunctionDef,
-    args: Expr[],
+  resolve(syntax: DST.Scope, _semantic?: any): DST.Block {
+    const dst = new DST.Block(this, syntax, syntax.safety);
+
+    for (const expr of this.body) {
+      dst.body.push(expr.resolve(dst, undefined));
+    }
+
+    return dst;
+  }
+}
+
+export class Final extends AST.Node
+  implements Resolvable<DST.VariableDef>, Node {
+  readonly id: AST.Node;
+  readonly type: CID | ID | Query;
+  readonly value: RVal;
+
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { id, type, value }: {
+      id: AST.Node;
+      type: CID | ID | Query;
+      value: RVal;
+    },
   ) {
-    this.cstNode = cstNode;
+    super(location, text);
+    this.id = id;
+    this.type = type;
+    this.value = value;
+  }
+
+  resolve(syntax: DST.Scope, _semantic?: any): DST.VariableDef {
+    const found = syntax.lookup(this.id);
+
+    if (found) {
+      throw new Panic(
+        `Already declared variable \`${this.id.text}\``,
+        this.id.location,
+        [new Note(`Previously declared here`, found.idNode().location)],
+      );
+    }
+
+    const restriction = syntax.find(this.type);
+    if (!(restriction instanceof DST.StructDef)) {
+      throw new Panic(
+        `Variable restriction must be a struct ID`,
+        restriction.astNode.location,
+      );
+    }
+
+    const value = this.value
+      ? ensureRVal(this.value!.resolve(syntax), this.value!.location)
+      : undefined;
+
+    const variable = new DST.VariableDef(
+      this,
+      this.id.text,
+      new DST.Ref(this.type, restriction),
+      value,
+    );
+
+    // FIXME: Shall move the set logic into the scope itself.
+    syntax.store(variable);
+
+    return variable;
+  }
+}
+
+export class UnOp extends AST.Node implements Resolvable<DST.Call>, Node {
+  /** E.g. `!`. */ readonly operator: ID;
+  readonly operand: RVal;
+
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { operator, operand }: {
+      operator: ID;
+      operand: RVal;
+    },
+  ) {
+    super(location, text);
+    this.operator = operator;
+    this.operand = operand;
+  }
+
+  resolve(syntax: DST.Scope, _semantic?: any): DST.Call {
+    return Call.resolveGeneric(this, syntax, this.operand, this.operator, [
+      this.operand,
+    ]);
+  }
+}
+
+/**
+ * ```nx
+ * fib(n - 1) + fib(n - 2)
+ * ```
+ */
+export class BinOp extends AST.Node implements Resolvable<DST.Call>, Node {
+  readonly left: RVal;
+  /** E.g. `+=` */ readonly operator: ID;
+  readonly right: RVal;
+
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { left, operator, right }: {
+      left: RVal;
+      operator: ID;
+      right: RVal;
+    },
+  ) {
+    super(location, text);
+    this.left = left;
+    this.operator = operator;
+    this.right = right;
+  }
+
+  resolve(syntax: DST.Scope, _semantic?: any): DST.Call {
+    return Call.resolveGeneric(this, syntax, this.left, this.operator, [
+      this.left,
+      this.right,
+    ]);
+  }
+}
+
+/**
+ * ```nx
+ * Int32::eq?(result, 55)
+ * ```
+ */
+export class Call extends AST.Node implements Resolvable<DST.Call>, Node {
+  readonly callee: CID | ID | Query;
+  readonly args: RVal[];
+
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { callee, args }: {
+      callee: CID | ID | Query;
+      args: RVal[];
+    },
+  ) {
+    super(location, text);
     this.callee = callee;
     this.args = args;
   }
 
-  async lower(output: BufWriter, _context?: any) {
-    if (this.callee instanceof CAST.Proto) {
-      await output.write(stringToBytes(this.callee.id()));
-      await output.write(CST.poly.PunctBytes.openParen);
+  static resolveGeneric(
+    astNode: UnOp | BinOp | Call,
+    syntaxScope: DST.Scope,
+    callerNode: RVal | undefined, // `n` in `n < 1`
+    calleeNode: CID | ID | Query, // `$puts()` | `foo()` | `foo.bar()` | `n < 1`
+    argNodes: RVal[],
+  ): DST.Call {
+    const args = new Array<DST.RuntimeValue>();
 
-      let first = true;
-      for (const arg of this.args) {
-        if (first) first = false;
-        else await output.write(CST.poly.PunctBytes.comma);
-        await arg.lower(output);
+    // For `foo.bar()` call, implicitly pass `foo` as the first argument.
+    if (
+      calleeNode instanceof Query && calleeNode.access == Lang.Access.INSTANCE
+    ) {
+      args.push(
+        ensureRVal(
+          calleeNode.container!.resolve(syntaxScope),
+          calleeNode.container!.location,
+        ),
+      );
+    }
+
+    for (const arg of argNodes) {
+      args.push(ensureRVal(arg.resolve(syntaxScope), arg.location));
+    }
+
+    const argTypes = new Array<GenericDST.Type>();
+
+    for (const arg of args) {
+      argTypes.push(arg.inferType(syntaxScope));
+    }
+
+    let resolveScope = syntaxScope;
+
+    if (callerNode) {
+      const caller = ensureRVal(
+        callerNode.resolve(syntaxScope),
+        callerNode.location,
+      );
+
+      const callerType = caller.inferType(syntaxScope);
+
+      if (!(callerType instanceof DST.StructDef)) {
+        throw new Panic(
+          `Can't have a non-struct value as a caller ` +
+            `(\`${callerType.name()}\` inferred)`,
+          callerNode.location,
+        );
       }
 
-      await output.write(CST.poly.PunctBytes.closeParen);
-      await output.write(CST.poly.PunctBytes.semi);
-    } else if (this.callee instanceof FunctionDef) {
-      switch (this.callee.builtin) {
-        case BuiltinFunction.Int32Sum: {
-          await this.args[0].lower(output);
-          await output.write(stringToBytes(" + "));
-          await this.args[1].lower(output);
-          break;
-        }
-        case BuiltinFunction.Int32Eq: {
-          await this.args[0].lower(output);
-          await output.write(stringToBytes(" == "));
-          await this.args[1].lower(output);
-          break;
-        }
-        default:
-          throw new Error("Unrecognized builtin function");
+      resolveScope = callerType;
+    }
+
+    const callee = calleeNode.resolve(resolveScope);
+
+    if (
+      !(callee.target instanceof DST.FunctionDef ||
+        callee.target instanceof CDST.Function)
+    ) {
+      throw new Panic(`\`${calleeNode.text}\` is not a function`);
+    }
+
+    // If callee is Onyx function, get its arguments as an array
+    // (map insertion ordering consistency is standardized).
+    const calleeArgs = callee.target.args instanceof Map
+      ? [...callee.target.args.values()]
+      : callee.target.args;
+
+    for (let i = 0; i < args.length; i++) {
+      const calleeArg = calleeArgs[i];
+
+      if (!calleeArg) {
+        throw new Panic("Argument arity mismatch", argNodes[i].location, [
+          new Note("Attempted to match this", callee.idNode().location),
+        ]);
+      }
+
+      if (
+        DST.compareTypes(
+          calleeArg instanceof DST.VariableDef
+            ? calleeArg.inferType(syntaxScope)
+            : calleeArg,
+          argTypes[i],
+        )
+      ) {
+        throw new Panic("Argument of invalid type", argNodes[i].location, [
+          new Note("Declared here", calleeArg.astNode.location),
+        ]);
+      }
+    }
+
+    return new DST.Call(astNode, callee, args);
+  }
+
+  resolve(syntax: DST.Scope, _semantic?: any): DST.Call {
+    return Call.resolveGeneric(
+      this,
+      syntax,
+      undefined,
+      this.callee,
+      this.args,
+    );
+  }
+}
+
+export class Case extends AST.Node implements Resolvable<DST.Case>, Node {
+  readonly cond: RVal;
+  readonly body: RVal | Block;
+
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { cond, body }: {
+      readonly cond: RVal;
+      readonly body: RVal | Block;
+    },
+  ) {
+    super(location, text);
+    this.cond = cond;
+    this.body = body;
+  }
+
+  resolve(syntax: DST.Scope, _semantic?: any): DST.Case {
+    const cond = ensureRVal(this.cond.resolve(syntax), this.cond.location);
+
+    if (this.body instanceof Block) {
+      return new DST.Case(this, cond, this.body.resolve(syntax));
+    } else {
+      return new DST.Case(
+        this,
+        cond,
+        ensureRVal(this.body.resolve(syntax), this.body.location),
+      );
+    }
+  }
+}
+
+export class If extends AST.Node implements Resolvable<DST.If>, Node {
+  readonly self: Case;
+  readonly elifs: Case[];
+  readonly else?: RVal | Block;
+
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { self, elifs, _else }: {
+      readonly self: Case;
+      readonly elifs: Case[];
+      readonly _else?: RVal | Block;
+    },
+  ) {
+    super(location, text);
+    this.self = self;
+    this.elifs = elifs;
+    this.else = _else;
+  }
+
+  resolve(syntax: DST.Scope, _semantic?: any): DST.If {
+    const self = this.self.resolve(syntax);
+
+    const elifs = new Array<DST.Case>();
+    for (const elif of this.elifs) {
+      elifs.push(elif.resolve(syntax));
+    }
+
+    let dst: DST.If;
+
+    if (this.else) {
+      if (this.else instanceof Block) {
+        dst = new DST.If(this, self, elifs, this.else.resolve(syntax));
+      } else {
+        dst = new DST.If(
+          this,
+          self,
+          elifs,
+          ensureRVal(this.else.resolve(syntax), this.else.location),
+        );
       }
     } else {
-      throw new Error("Unhandled callee AST node type");
+      dst = new DST.If(this, self, elifs);
+    }
+
+    if (syntax instanceof DST.TopLevel) syntax.store(dst); // FIXME:
+    return dst;
+  }
+}
+
+export class IntLiteral extends AST.Node
+  implements Resolvable<DST.IntLiteral>, Node {
+  resolve(_syntaxScope: DST.Scope, _semantic?: any): DST.IntLiteral {
+    return new DST.IntLiteral(this, parseInt(this.text));
+  }
+}
+
+export class Return extends AST.Node implements Resolvable<DST.Return>, Node {
+  readonly value?: RVal;
+
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { value }: { value?: RVal },
+  ) {
+    super(location, text);
+    this.value = value;
+  }
+
+  resolve(syntax: DST.Scope, _semantic?: any): DST.Return {
+    if (this.value) {
+      const resolved = ensureRVal(
+        this.value.resolve(syntax),
+        this.value.location,
+      );
+      return new DST.Return(this, resolved);
+    } else {
+      return new DST.Return(this);
     }
   }
 }
 
-class Case implements Node {
-  cstNode: CST.Case;
-  private _cond: Expr;
-  private _then: Block;
+export class ExplicitSafety extends AST.Node
+  implements Resolvable<DST.Block>, Node {
+  readonly safety: Lang.Safety;
+  readonly body: RVal | Block;
 
-  static compile(block: Block, cstNode: CST.Case): Case {
-    const cond = block.compile(cstNode.cond)!;
-
-    // TODO: Improve.
-    const thenBlock = new Block(undefined, block);
-    thenBlock.compile(cstNode.body);
-
-    return new Case(cstNode, cond, thenBlock);
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { safety, body }: {
+      safety: Lang.Safety;
+      body: RVal | Block;
+    },
+  ) {
+    super(location, text);
+    this.safety = safety;
+    this.body = body;
   }
 
-  private constructor(cstNode: CST.Case, cond: Expr, then: Block) {
-    this.cstNode = cstNode;
-    this._cond = cond;
-    this._then = then;
-  }
+  resolve(syntax: DST.Scope, _semantic?: any): DST.Block {
+    let block: DST.Block;
 
-  async lower(output: BufWriter, _context?: any) {
-    await output.write(CST.poly.PunctBytes.openParen);
-    await this._cond.lower(output);
-    await output.write(CST.poly.PunctBytes.closeParen);
-    await output.write(CST.poly.PunctBytes.openBracket);
-    console.dir(this._then);
-    await this._then.lower(output);
-    await output.write(CST.poly.PunctBytes.closeBracket);
+    if (this.body instanceof Block) {
+      block = new DST.Block(this.body, syntax, this.safety);
+
+      for (const expr of this.body.body) {
+        block.body.push(expr.resolve(block));
+      }
+    } else {
+      block = new DST.Block(undefined, syntax, this.safety);
+      block.body.push(ensureRVal(this.body.resolve(block), this.body.location));
+    }
+
+    return block;
   }
 }
 
-class If implements Node {
-  cstNode: CST.If;
-  private _self: Case;
-  private _else?: Block;
+export class Query extends AST.Node implements Resolvable<DST.Ref>, Node {
+  readonly container?: RVal;
+  readonly access?: Lang.Access;
+  readonly id: ID;
 
-  static compile(block: Block, cstNode: CST.If): If {
-    const selfBlock = new Block(undefined, block);
-    const self = Case.compile(selfBlock, cstNode.self);
-
-    // TODO: Improve.
-    let elseBlock: Block | undefined;
-    if (cstNode.else) {
-      elseBlock = new Block(undefined, selfBlock);
-      elseBlock.compile(cstNode.else.body);
-    }
-
-    return new If(cstNode, self, elseBlock);
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { container, access, id }: {
+      container?: RVal;
+      access?: Lang.Access;
+      id: ID;
+    },
+  ) {
+    super(location, text);
+    this.container = container;
+    this.access = access;
+    this.id = id;
   }
 
-  private constructor(cstNode: CST.If, self: Case, _else?: Block) {
-    this.cstNode = cstNode;
-    this._self = self;
-    this._else = _else;
-  }
+  resolve(
+    syntax: DST.Scope,
+    _semantic?: any,
+  ): DST.Ref {
+    if (this.container) {
+      const container = ensureRVal(
+        this.container.resolve(syntax),
+        this.container.location,
+      );
 
-  async lower(output: BufWriter, _context?: any) {
-    await output.write(stringToBytes("if"));
-    await this._self.lower(output);
+      const containerType = container.inferType(syntax);
 
-    if (this._else) {
-      await output.write(stringToBytes("else"));
-      await output.write(CST.poly.PunctBytes.openBracket);
-      await this._else!.lower(output);
-      await output.write(CST.poly.PunctBytes.closeBracket);
+      if (containerType instanceof DST.StructDef) {
+        return this.id.resolve(containerType);
+      } else {
+        throw new Panic(
+          `Can not query type \`${containerType.name()}\``,
+          this.container.location,
+        );
+      }
+    } else {
+      return this.id.resolve(syntax);
     }
   }
 }
 
-type Expr = IntLiteral | FFIStringLiteral | Call | Block | If;
+export class CID extends AST.Node implements Resolvable<DST.Ref> {
+  readonly value: AST.Node;
+
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { value }: { value: AST.Node },
+  ) {
+    super(location, text);
+    this.value = value;
+  }
+
+  resolve(
+    syntax: DST.Scope,
+    _semantic?: any,
+  ): DST.Ref {
+    return new DST.Ref(this, syntax.unit().program.cDST.find(this.value));
+  }
+}
+
+// An identifier, like `foo`.
+export class ID extends AST.Node implements Resolvable<DST.Ref>, Node {
+  resolve(
+    syntax: DST.Scope,
+    _semantic?: any,
+  ): DST.Ref {
+    return new DST.Ref(this, syntax.find(this));
+  }
+}
+
+function ensureRVal(
+  dstNode: any,
+  location: peggy.LocationRange,
+): DST.Ref | DST.Call | DST.IntLiteral | DST.Return {
+  if (
+    !(dstNode instanceof DST.Ref || dstNode instanceof DST.Call ||
+      dstNode instanceof DST.IntLiteral || dstNode instanceof DST.Return)
+  ) {
+    throw new Panic(
+      `Expected ref, call, explicit safety statement or literal, ` +
+        `got ${dstNode.constructor.name}`,
+      location,
+    );
+  }
+
+  return dstNode;
+}

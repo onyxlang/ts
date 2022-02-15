@@ -1,0 +1,28 @@
+@import struct from: "./mod/struct.nx"
+
+# `\Bool` means `AST::Bool` (no need to explicitly import `AST`).
+@export<:default> @struct Int<Signed: \Bool, Bitsize: \Int> {
+  # `Int32(42)` => `42i32`.
+  @:construct<:builtin> (literal: \Int) \{%
+    zig`${literal.value}${Signed.value ? 'i' : 'u'}${Bitsize.value}`
+  %}
+
+  @:fn<:builtin>  +(@final another: @self): @self \{%
+    zig`${this.args[0]} + ${this.args[1]}`
+  %}
+
+  @:fn<:builtin>  -(@final another: @self): @self
+  @:fn<:builtin>  <(@final another: @self): Bool
+  @:fn<:builtin>  >(@final another: @self): Bool
+  @:fn<:builtin> <=(@final another: @self): Bool
+  @:fn<:builtin> >=(@final another: @self): Bool
+  @:fn<:builtin> ==(@final another: @self): Bool
+}, \{%
+  zig`${Signed.value ? 'i' : 'u'}${Bitsize.value}`
+%}
+
+@test "Int32" {
+  @test "::+" {
+    @assert(1 + 2 == 3)
+  }
+}

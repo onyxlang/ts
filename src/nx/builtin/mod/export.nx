@@ -1,0 +1,35 @@
+@import { AST: * } from: "std/onyx/ast.nx"
+
+@mod export(@final entity: AST::Mod) \{%
+  const defaultFlag = this.flags.find(f => f.value == "default"))
+
+  if (defaultFlag) {
+    const exist = Onyx.unit.defaultExport
+
+    if (exist) {
+      throw new Panic("Already have default export", defaultFlag.location, [
+        new Note("Previously defaulted here", exist.defaultFlag)
+      ])
+    }
+
+    Onyx.unit.defaultExport = { entity, defaultFlag }
+  } else {
+    let id: AST.Id
+
+    if (entity.mod.id == "struct") {
+      id = entity.mod.args.id
+    }
+
+    const exist = Onyx.unit.exports.get(id.value)
+
+    if (exist) {
+      throw new Panic(`Already exporting \`${id.value}\``, id.location, [
+        new Note(`Exporting here`, exist.id.location)
+      ])
+    }
+
+    Onyx.unit.exports.set(id.value, { id, entity })
+  }
+%}
+
+@export:default export

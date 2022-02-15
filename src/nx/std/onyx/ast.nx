@@ -1,0 +1,25 @@
+@import Unit from: "./unit.nx"
+
+@export @class Node {
+  @export @struct Location {
+    @export @struct Position {
+      @:final row, col: USize
+    }
+
+    @:final unit: Unit
+    @:final start, end: Position
+  }
+
+  @:final location: Location
+  @:final text: String
+
+  @:construct~default
+}
+
+@export @struct IntLiteral extend: Node {
+  @:fn value(): USize => USize::parse(@this.text)
+}
+
+@export @struct BoolLiteral extend: Node {
+  @:fn value(): Bool => @this.text == "true" ? true : false
+}

@@ -1,0 +1,43 @@
+@import Class from: "./mod/class.nx"
+@import Enumerable from: "../std/enumerable.nx"
+@import List from: "../std/list.nx"
+@import { OStream } from: "../std/stream.nx"
+@import { AST: * } from: "../std/onyx/ast.nx"
+
+@export<[:default]> @class Panic {
+  @export @class Note {
+    @.final message: String
+    @.final location: AST::Node::Location
+    @.constructor;
+
+    @.fn print(@final output: OStream) {
+      output << @.this.message
+    }
+  }
+
+  @.final self: Note
+  @.final notes: Class && Enumerable<Note>
+
+  @.constructor(@final message: String, @final location, @final notes = List<Note>()) {
+    @.this.self = Note(message, location)
+    @.this.notes = notes
+  }
+
+  @.fn print(@final output: OStream) {
+    output << "Panic!\n"
+    self.print(output)
+
+    @.this.notes.each((note) => {
+      output << "Note\n"
+      note.print(output)
+    })
+  }
+
+  @export @class AlreadyDeclared extend: Panic {
+    @.constructor(@final tried: AST.Id, @final defined: AST.Id) {
+      @.super("Already declared `#{ tried.text }`", tried.location, [
+        Panic::Note("previously declared here", defined.location)
+      ])
+    }
+  }
+}

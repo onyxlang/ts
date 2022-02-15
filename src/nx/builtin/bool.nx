@@ -1,0 +1,5 @@
+@export:default @struct:builtin Bool {
+  @fn:builtin ==(@final another: @self): @self \{%
+    zig`${this.args[0]} == ${this.args[1]}`
+  %}
+}

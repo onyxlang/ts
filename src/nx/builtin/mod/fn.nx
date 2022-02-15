@@ -1,0 +1,12 @@
+@mod fn (id, args, body) \{%
+  const found = syntaxScope.lookup(id.value)
+  if (found) throw new Panic("Already declared", id.location)
+%}
+
+@test "fn" {
+  @fn sum(@final a: Int32, @final b: Int32) {
+    @return a + b
+  }
+
+  @assert(sum(1, 2) == 3)
+}

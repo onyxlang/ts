@@ -1,0 +1,7 @@
+@export~default @struct~builtin Float<Bitsize: \Int> {
+  @:fn~builtin ~=(@final compared: @self, @final delta: @self): @self \{%
+    zig``
+  %}
+}
+
+@export @alias Float64 to: Float<64>

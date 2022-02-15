@@ -1,0 +1,62 @@
+{%
+  enum BuiltinStruct {
+    Bool,
+    Int32
+  }
+
+  class BuiltinStructDST {
+    readonly astNode: AST.Mod
+    readonly kind: BuiltinStruct
+
+    constructor(astNode: AST.Mod) {
+      this.astNode = astNode
+
+      switch (astNode.id.text) {
+        case "Bool":
+          this.kind = BuiltinStruct.Bool
+          break
+          case "Int32":
+            this.kind = BuiltinStruct.Int32
+            break
+      }
+    }
+  }
+
+  enum BuiltinStructFunction {
+    "Bool::!(Bool): Bool",
+    "Int32::-(Int32, Int32): Int32",
+    "Int32::+(Int32, Int32): Int32",
+    "Int32::<(Int32, Int32): Bool",
+    "Int32::<=(Int32, Int32): Bool",
+    "Int32::eq?(Int32, Int32): Bool",
+  }
+%}
+
+@export~default @mod struct (id, body) \{%
+  throw new Panic("Struct definition isn't implemented yet");
+%}
+
+@mod struct.builtin (id, body) \{%
+  const found = this.syntaxScope.lookup(id.text)
+
+  if (found) {
+    throw new Panic(`Already defined \`${found.id.text}\``, id.location, [
+      new Note(`Previously defined here`, found.id.location)
+    ])
+  }
+
+  const dst = new BuiltinStructDST(this)
+  this.syntaxScope.store(id.text, dst)
+
+  for (const node of body) {
+    if (!(node instanceof AST.Mod)) {
+      throw new Panic("Expected `@struct.*` mod")
+    }
+
+    node.resolve(dst)
+  }
+%}
+
+@mod struct.*.fn.builtin (id, args, returnType) \{%
+
+%}

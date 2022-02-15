@@ -1,0 +1,36 @@
+# Import a default export.
+#
+# ```
+# @import Bool from: "builtin/bool.nx"
+# ```
+@export:default @mod import(id: AST.Id, from: AST.String) \{%
+  const unit = Onyx.program[from.args.path]
+  const imported = unit.defaultExport
+  Onyx.syntaxScope.store(id.value, imported)
+%};
+
+# Import auxiliary entities without default export.
+#
+# ```
+# @import { Foo, } from: "builtin/bool.nx"
+# ```
+@mod import(aux: AST.Record, from: AST.String) \{%
+  for (const [key, value] of aux) {
+    if (!(value instanceof AST.Id)) {
+      throw new StdPanic.UnexpectedASTNode(value, AST.Id)
+    }
+
+    const imported = unit.exports[value.value]
+    Onyx.syntaxScope.store(key.value, imported)
+  }
+%}
+
+# Import a default export and also auxiliary entities.
+#
+# ```
+# @import Bool, { Foo, } from: "builtin/bool.nx"
+# ```
+@mod import(id: AST.Id, aux: AST.Record, from: AST.String) \{%
+  Onyx.syntaxScope.find("import").apply(id, from)
+  Onyx.syntaxScope.find("import").apply(aux, from)
+%}

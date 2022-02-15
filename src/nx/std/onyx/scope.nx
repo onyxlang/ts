@@ -1,0 +1,15 @@
+@export~default @class Scope {
+  @.final exports = Map<String, Class>()
+  @.final imports = Map<String, Class>()
+  protected~@.final lut = Map<String, Class>()
+
+  @.fn lookup(id: AST.Id): Class? {
+    return @.this.lut[id.value]
+  }
+
+  @.fn find(id: AST.Id): Class throws: NotFound {
+    final found = @.this.lookup(id)
+    @if (!found)  @throw NotFound()
+    @else         @return found
+  }
+}

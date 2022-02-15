@@ -1,0 +1,11 @@
+@export:default @mod if (cond, body) \{%
+
+%}
+
+@test "if" {
+  @if (true) {
+    @assert(true)
+  } @elif (true) {
+    @assert(false)
+  }
+}

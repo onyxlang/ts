@@ -1,0 +1,44 @@
+@import { AST: * } from: "std/onyx/ast.nx"
+
+@export:default @mod struct(id: AST.Id, body: AST.Block) \{%
+  const found = syntaxScope.lookup(id.value)
+  if (found) throw new Panic("Already declared", id.location)
+
+  const dst = {
+    type: "struct",
+    id,
+    body
+  }
+
+  syntaxScope.store(id.value, dst)
+
+  for (const node of body) {
+    if (node instanceof AST.Mod) {
+      if (node.mainMod.id.value == "fn") {
+        node.resolve(dst)
+      } else {
+        throw new Panic()
+      }
+    } else {
+      throw new Panic()
+    }
+  }
+%}
+
+@mod struct:builtin(id: AST.Id, body: AST.Block, macro: AST.DelayedMacro) \{%
+
+%}
+
+@test "struct" {
+  @import { Float64 } from: "../float.nx"
+
+  @struct Point {
+    @:let x, y : Float64
+    @:fn length() => (@this.x ** 2 + @this.y ** 2).sqrt()
+  }
+
+  @final point = Point(3, 4)
+
+  @assert(point.x.~=(3, 0.01))
+  @assert(point.length().~=(5, 0.01))
+}

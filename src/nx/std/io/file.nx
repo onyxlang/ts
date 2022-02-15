@@ -1,0 +1,17 @@
+@extern #include <stdio.h>
+
+@export~default @class File {
+  @export @class Path {
+    @.final string: String
+  }
+
+  @.final desc: $FILE
+
+  @.init(@final path: Path) {
+    @unsafe! $open(path.string.raw)
+  }
+
+  @.deinit {
+    $close(@this.desc)
+  }
+}

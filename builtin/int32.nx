@@ -1,0 +1,7 @@
+@struct.builtin Int32 {
+  @.fn.builtin   -(another: Int32): Int32
+  @.fn.builtin   +(another: Int32): Int32
+  @.fn.builtin   <(another: Int32): Bool
+  @.fn.builtin  <=(another: Int32): Bool
+  @.fn.builtin eq?(another: Int32): Bool
+}

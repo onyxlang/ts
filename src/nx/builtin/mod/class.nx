@@ -1,0 +1,66 @@
+@export<[:default]> @mod class(id: AST.Id, body: AST.Block) \{%
+  @final superion = @.this.semanticScope.lookup(id.value)
+
+  @if (!superion) \
+    superion = Class::Superion(id)
+  @elif (@rtti.type(superion) != Class::Superion) \
+    @throw Panic::AlreadyDeclared(id, superion.idNode())
+
+  @if (superion.def?)
+    @throw Class::AlreadyDefined(this, superion.def!)
+
+  @final dst = {
+    type: "class",
+    id,
+    body
+  }
+
+  # `Klass()` constructs a new instance.
+  id.onCall (@final event) => {
+    superion.spec!()
+  }
+
+  id.onScopeLeave (@final event) => {
+    event.reference as Class
+  }
+
+  @.this.semanticScope.store(id.value, body)
+%}
+
+@export @class Class {
+  @export @class Superion {
+    @.final idNode: AST.Id
+    @.getter def?: \class
+    @.getter spec?: Spec () => this.spec ||= Class::Spec()
+
+    @.constructor(@final def: \class) => @.this.idNode = def.id
+    @.fn id(): String => @.this.idNode.value
+
+    @.fn specialize()
+  }
+
+  @export @class Spec {
+    @.final superion: Superion
+    @.final fields: List<FieldSpec>
+    @.final methods: List<MethodSpec>
+
+    @.construct(@final superion, @final def: \class) {
+      @.this.superion = superion
+
+      # Generate Zig code for the class object and its methods.
+      def.zig(<<-ZIG
+        // TODO:
+      ZIG)
+    }
+  }
+
+  @export @class AlreadyDefined extend: Panic {
+    @.constructor(@final current: \class, @final previous: \class) {
+      @.super(
+        "Already defined `#{current.id.text}`",
+        current.id.location,
+        List<Note>(["Previously defined here", previous.id.location])
+      )
+    }
+  }
+}

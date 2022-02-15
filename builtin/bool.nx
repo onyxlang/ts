@@ -1,0 +1,3 @@
+@struct.builtin Bool {
+  @.fn.builtin !(): Bool
+}

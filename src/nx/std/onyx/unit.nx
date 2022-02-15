@@ -1,0 +1,12 @@
+@import List from: "../list.nx"
+@import File from: "../io/file.nx"
+@import Scope from: "./scope.nx"
+
+@export~default @class Unit extend: Scope {
+  @.final ast = List<AST::Node>()
+  @.final file: File
+
+  @.construct(@final path: File::Path) {
+    @this.file = File(path)
+  }
+}

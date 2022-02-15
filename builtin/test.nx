@@ -1,0 +1,5 @@
+@extern _Noreturn exit(int exit_code);
+
+@export @fn assert(@final value: Bool) {
+  @if (!value) @unsafe! $exit(1)
+}

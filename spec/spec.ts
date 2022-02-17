@@ -13,6 +13,7 @@ function run(path: string) {
     cmd.push(...["--zig", zig_exe]);
   }
 
+  console.debug(cmd);
   return Deno.run({ cmd });
 }
 

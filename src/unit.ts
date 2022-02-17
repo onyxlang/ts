@@ -80,7 +80,7 @@ export default class Unit {
     const output_path = await this.program.cachePath(this.filePath, ".zig");
     console.debug(`Lowering to ${output_path}`);
 
-    Deno.mkdir(pathAPI.dirname(output_path), { recursive: true });
+    await Deno.mkdir(pathAPI.dirname(output_path), { recursive: true });
 
     const file = await Deno.open(output_path, {
       create: true,
@@ -92,7 +92,7 @@ export default class Unit {
 
     try {
       await this._dst!.lower(buf, { safety: Lang.Safety.FRAGILE });
-      buf.flush();
+      await buf.flush();
       this._loweredModulePath = output_path;
     } finally {
       file.close();

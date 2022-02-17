@@ -297,6 +297,7 @@ access = access:access_instance
 // Literal
 //
 
+// FIXME: `0` doesn't match.
 int_literal = @'0' ![0-9] / $([1-9] [0-9]*) {
   trace(`int_literal`)
   return new Onyx.AST.IntLiteral(location(), text())

@@ -140,7 +140,7 @@ if =
 //
 
 explicit_safety =
-  safety:('@' @("unsafe" / "fragile" / "threadsafe") '!' nkw) sp?
+  safety:$("unsafe" / "fragile" / "threadsafe") '!' nkw sp?
   body:(block / instruction / rval)
 {
   trace(`explicit_safety`)
@@ -355,27 +355,27 @@ c_prototype = returnType:c_type_ref sp id:c_id sp? args:c_proto_args sp? ';' {
 
 nkw = ![a-zA-Z_0-9!] // "Not keyword"
 
-kw_extern = "@extern" nkw { return node() }
-kw_builtin = "@builtin" nkw { return node() }
+kw_extern = "extern" nkw { return node() }
+kw_builtin = "builtin" nkw { return node() }
 
-kw_final = "@final" nkw { return node() }
-kw_def = "@def" nkw { return node() }
-kw_struct = "@struct" nkw { return node() }
+kw_final = "final" nkw { return node() }
+kw_def = "def" nkw { return node() }
+kw_struct = "struct" nkw { return node() }
 
-kw_if = "@if" nkw { return node() }
-kw_then = "@then" nkw { return node() }
-kw_elif = "@elif" nkw { return node() }
-kw_else = "@else" nkw { return node() }
+kw_if = "if" nkw { return node() }
+kw_then = "then" nkw { return node() }
+kw_elif = "elif" nkw { return node() }
+kw_else = "else" nkw { return node() }
 
-kw_unsafe = "@unsafe" nkw { return node() }
-kw_fragile = "@fragile" nkw { return node() }
-kw_threadsafe = "@threadsafe" nkw { return node() }
+kw_unsafe = "unsafe" nkw { return node() }
+kw_fragile = "fragile" nkw { return node() }
+kw_threadsafe = "threadsafe" nkw { return node() }
 
-kw_unsafe_bang = "@unsafe!" nkw { return node() }
-kw_fragile_bang = "@fragile!" nkw { return node() }
-kw_threadsafe_bang = "@threadsafe!" nkw { return node() }
+kw_unsafe_bang = "unsafe!" nkw { return node() }
+kw_fragile_bang = "fragile!" nkw { return node() }
+kw_threadsafe_bang = "threadsafe!" nkw { return node() }
 
-kw_return = "@return" nkw { return node() }
+kw_return = "return" nkw { return node() }
 
 // C keywords
 //

@@ -99,12 +99,12 @@ export class Struct extends AST.Node
       );
     }
 
-    // TODO: `@builtin` is `Modifier` node, can be looked up
+    // IDEA: `builtin` is `Modifier` node, can be looked up
     // in the well-known struct modifiers list.
     //
 
     let builtin: DST.BuiltinStruct | undefined;
-    if (this.modifiers.find((m) => m.text === "@builtin")) {
+    if (this.modifiers.find((m) => m.text === "builtin")) {
       builtin = (<any> DST.BuiltinStruct)[this.id.text];
 
       if (!builtin) {
@@ -248,7 +248,7 @@ export class Def extends AST.Node implements Resolvable<DST.FunctionDef>, Node {
       );
     }
 
-    const builtinModifier = this.modifiers.find((m) => m.text == "@builtin");
+    const builtinModifier = this.modifiers.find((m) => m.text == "builtin");
 
     if (builtinModifier) {
       if (syntax instanceof DST.StructDef) {

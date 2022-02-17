@@ -1,27 +1,27 @@
-@extern _Noreturn exit(int exit_code);;
+extern _Noreturn exit(int exit_code);
 
-@builtin @struct Bool {
-  @builtin @def !(this: Bool): Bool;
-};
+builtin struct Bool {
+  builtin def !(this: Bool): Bool
+}
 
-@builtin @struct Int32 {
-  @builtin @def   -(this: Int32, another: Int32): Int32;
-  @builtin @def   +(this: Int32, another: Int32): Int32;
-  @builtin @def   <(this: Int32, another: Int32): Bool;
-  @builtin @def  <=(this: Int32, another: Int32): Bool;
-  @builtin @def eq?(this: Int32, another: Int32): Bool;
-};
+builtin struct Int32 {
+  builtin def   -(this: Int32, another: Int32): Int32
+  builtin def   +(this: Int32, another: Int32): Int32
+  builtin def   <(this: Int32, another: Int32): Bool
+  builtin def  <=(this: Int32, another: Int32): Bool
+  builtin def eq?(this: Int32, another: Int32): Bool
+}
 
-@def fib(n: Int32): Int32 {
-  @if   (n < 1)  @return 0;
-  @elif (n <= 2) @return 1;
-  @else {
-    @return fib(n - 1) + fib(n - 2);
-  };
-};
+def fib(n: Int32): Int32 {
+  if   (n < 1)  return 0
+  elif (n <= 2) return 1
+  else {
+    return fib(n - 1) + fib(n - 2)
+  }
+}
 
-@final result: Int32 = fib(10);
+final result: Int32 = fib(10)
 
-@if (!result.eq?(55)) {
-  @unsafe! $exit(1);
-};
+if (!result.eq?(55)) {
+  unsafe! $exit(1)
+}

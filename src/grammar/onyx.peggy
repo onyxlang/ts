@@ -8,7 +8,8 @@
 
 // A per-parse initializer.
 {
-  trace(`Parsing ${options.grammarSource}`)
+  // TODO: Display relative path to files.
+  console.debug(`Parsing ${options.grammarSource}`)
 
   function node() {
     return new Generic.AST.Node(location(), text())

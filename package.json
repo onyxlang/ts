@@ -3,6 +3,10 @@
   "version": "0.0.1",
   "description": "The reference Onyx compiler implementation",
   "scripts": {
+    "onyx:run": "deno run -A ./src/main.ts run",
+    "onyx:r": "npm run onyx:run",
+    "onyx:compile": "deno compile -A ./src/main.ts run",
+    "onyx:c": "npm run onyx:compile",
     "test": "deno test --allow-env --allow-read",
     "build": "deno compile -A --output bin/onyx src/main.ts",
     "spec": "npm run build && deno test -A spec/spec.ts -- bin/onyx",

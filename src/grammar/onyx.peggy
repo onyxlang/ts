@@ -14,6 +14,10 @@
     return new Generic.AST.Node(location(), text())
   }
 
+  function keyword(kind) {
+    return new Onyx.AST.Keyword(location(), text(), { kind })
+  }
+
   function trace(rule, customText = undefined) {
     if (options.trace)
       console.debug(`${rule.padStart(20)} | ${customText || text()}`)
@@ -355,29 +359,32 @@ c_prototype = returnType:c_type_ref sp id:c_id sp? args:c_proto_args sp? ';' {
 
 nkw = ![a-zA-Z_0-9!] // "Not keyword"
 
-kw_extern = "extern" nkw { return node() }
-kw_builtin = "builtin" nkw { return node() }
+kw_extern = "extern" nkw { return keyword(Onyx.Lang.Keyword.EXTERN) }
+kw_builtin = "builtin" nkw { return keyword(Onyx.Lang.Keyword.BUILTIN) }
 
-kw_final = "final" nkw { return node() }
-kw_def = "def" nkw { return node() }
-kw_struct = "struct" nkw { return node() }
+kw_final = "final" nkw { return keyword(Onyx.Lang.Keyword.FINAL) }
+kw_def = "def" nkw { return keyword(Onyx.Lang.Keyword.DEF) }
+kw_struct = "struct" nkw { return keyword(Onyx.Lang.Keyword.STRUCT) }
 
-kw_if = "if" nkw { return node() }
-kw_then = "then" nkw { return node() }
-kw_elif = "elif" nkw { return node() }
-kw_else = "else" nkw { return node() }
+kw_if = "if" nkw { return keyword(Onyx.Lang.Keyword.IF) }
+kw_then = "then" nkw { return keyword(Onyx.Lang.Keyword.THEN) }
+kw_elif = "elif" nkw { return keyword(Onyx.Lang.Keyword.ELIF) }
+kw_else = "else" nkw { return keyword(Onyx.Lang.Keyword.ELSE) }
 
-kw_unsafe = "unsafe" nkw { return node() }
-kw_fragile = "fragile" nkw { return node() }
-kw_threadsafe = "threadsafe" nkw { return node() }
+kw_unsafe = "unsafe" nkw { return keyword(Onyx.Lang.Keyword.UNSAFE) }
+kw_fragile = "fragile" nkw { return keyword(Onyx.Lang.Keyword.FRAGILE) }
+kw_threadsafe = "threadsafe" nkw { return keyword(Onyx.Lang.Keyword.THREADSAFE) }
 
-kw_unsafe_bang = "unsafe!" nkw { return node() }
-kw_fragile_bang = "fragile!" nkw { return node() }
-kw_threadsafe_bang = "threadsafe!" nkw { return node() }
+// TODO: Explicit safety accepts a keyword.
+kw_unsafe_bang = "unsafe!" nkw { return keyword(Onyx.Lang.Keyword.UNSAFE_BANG) }
+kw_fragile_bang = "fragile!" nkw { return keyword(Onyx.Lang.Keyword.FRAGILE_BANG) }
+kw_threadsafe_bang = "threadsafe!" nkw {
+  return keyword(Onyx.Lang.Keyword.THREADSAFE_BANG) }
 
-kw_return = "return" nkw { return node() }
+kw_return = "return" nkw { return keyword(Onyx.Lang.Keyword.RETURN) }
 
 // C keywords
 //
 
+// TODO: C keyword nodes.
 c_kw_const = "const" { return node() }

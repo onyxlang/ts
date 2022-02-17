@@ -5,6 +5,9 @@ export enum Keyword {
   UNSAFE = "unsafe",
   FRAGILE = "fragile",
   THREADSAFE = "threadsafe",
+  UNSAFE_BANG = "unsafe!",
+  FRAGILE_BANG = "fragile!",
+  THREADSAFE_BANG = "threadsafe!",
 
   // Well-known modifiers
   //

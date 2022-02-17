@@ -38,14 +38,33 @@ export interface Node {
   resolve(syntax: DST.Scope, semantic?: any): any;
 }
 
+/**
+ * An Onyx keyword AST node, e.g. `struct`.
+ */
+export class Keyword<T extends Lang.Keyword> extends AST.Node {
+  readonly kind: Lang.Keyword;
+
+  constructor(
+    location: peggy.LocationRange,
+    text: string,
+    { kind }: { kind: T },
+  ) {
+    super(location, text);
+    this.kind = kind;
+  }
+}
+
 export class Extern extends AST.Node implements Resolvable<DST.Extern>, Node {
-  readonly keyword: AST.Node;
+  readonly keyword: Keyword<Lang.Keyword.EXTERN>;
   readonly value: CAST.Prototype;
 
   constructor(
     location: peggy.LocationRange,
     text: string,
-    { keyword, value }: { keyword: AST.Node; value: CAST.Prototype },
+    { keyword, value }: {
+      keyword: Keyword<Lang.Keyword.EXTERN>;
+      value: CAST.Prototype;
+    },
   ) {
     super(location, text);
     this.keyword = keyword;
@@ -69,7 +88,8 @@ export class Extern extends AST.Node implements Resolvable<DST.Extern>, Node {
 
 export class Struct extends AST.Node
   implements Resolvable<DST.StructDef>, Node {
-  readonly modifiers: AST.Node[];
+  // TODO: readonly keyword: Keyword<Lang.Keyword.STRUCT>;
+  readonly modifiers: Keyword<Lang.Keyword.BUILTIN>[];
   readonly id: AST.Node;
   readonly body: Block;
 
@@ -77,7 +97,7 @@ export class Struct extends AST.Node
     location: peggy.LocationRange,
     text: string,
     { modifiers, id, body }: {
-      modifiers: AST.Node[];
+      modifiers: Keyword<Lang.Keyword.BUILTIN>[];
       id: AST.Node;
       body: Block;
     },
@@ -104,7 +124,7 @@ export class Struct extends AST.Node
     //
 
     let builtin: DST.BuiltinStruct | undefined;
-    if (this.modifiers.find((m) => m.text === "builtin")) {
+    if (this.modifiers.find((m) => m.kind == Lang.Keyword.BUILTIN)) {
       builtin = (<any> DST.BuiltinStruct)[this.id.text];
 
       if (!builtin) {
@@ -204,7 +224,7 @@ export class DefArg extends AST.Node
 }
 
 export class Def extends AST.Node implements Resolvable<DST.FunctionDef>, Node {
-  readonly modifiers: AST.Node[];
+  readonly modifiers: Keyword<Lang.Keyword.BUILTIN>[];
   /** `def` */ readonly keyword: AST.Node;
   readonly id: AST.Node;
   readonly args: DefArg[];
@@ -215,7 +235,7 @@ export class Def extends AST.Node implements Resolvable<DST.FunctionDef>, Node {
     location: peggy.LocationRange,
     text: string,
     { modifiers = [], keyword, id, args, returnType, body }: {
-      modifiers: AST.Node[];
+      modifiers: Keyword<Lang.Keyword.BUILTIN>[];
       keyword: AST.Node;
       id: AST.Node;
       args: DefArg[];
@@ -248,7 +268,9 @@ export class Def extends AST.Node implements Resolvable<DST.FunctionDef>, Node {
       );
     }
 
-    const builtinModifier = this.modifiers.find((m) => m.text == "builtin");
+    const builtinModifier = this.modifiers.find((m) =>
+      m.kind == Lang.Keyword.BUILTIN
+    );
 
     if (builtinModifier) {
       if (syntax instanceof DST.StructDef) {

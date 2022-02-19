@@ -26,7 +26,7 @@ jobs:
 
       - uses: denoland/setup-deno@v1.0.0
         with:
-          deno-version: v1.x # Run with latest stable Deno.
+          deno-version: v1.18
 
       - uses: goto-bus-stop/setup-zig@v1
         with:

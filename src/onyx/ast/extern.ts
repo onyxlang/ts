@@ -26,7 +26,7 @@ export default class Extern extends AST.Node
     this.value = value;
   }
 
-  resolve(syntax: DST.TopLevel, _semantic?: any): DST.Extern {
+  async resolve(syntax: DST.TopLevel, _semantic?: any): Promise<DST.Extern> {
     if (!(syntax instanceof DST.TopLevel)) {
       throw new Panic(
         "Can only extern at the top-level scope",
@@ -34,7 +34,7 @@ export default class Extern extends AST.Node
       );
     }
 
-    const resolved = this.value.resolve(syntax.cDST());
+    const resolved = await this.value.resolve(syntax.cDST());
     const dst = new DST.Extern(this, resolved);
     syntax.externs.push(dst);
     return dst;

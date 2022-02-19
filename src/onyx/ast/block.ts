@@ -7,22 +7,22 @@ import * as AST from "../../ast.ts";
 import { ensureRVal, Expression, Node, Resolvable, RVal } from "../ast.ts";
 
 export default class Block extends AST.Node implements Resolvable<DST.Block> {
-  readonly body: Expression[];
+  readonly body: (Expression)[];
 
   constructor(
     location: peggy.LocationRange,
     text: string,
-    { body }: { body: Expression[] },
+    { body }: { body: (Expression)[] },
   ) {
     super(location, text);
     this.body = body;
   }
 
-  resolve(syntax: DST.Scope, _semantic?: any): DST.Block {
+  async resolve(syntax: DST.Scope, _semantic?: any): Promise<DST.Block> {
     const dst = new DST.Block(this, syntax, syntax.safety);
 
     for (const expr of this.body) {
-      dst.body.push(expr.resolve(dst, undefined));
+      dst.body.push(await expr.resolve(dst, undefined));
     }
 
     return dst;
@@ -47,18 +47,20 @@ export class ExplicitSafety extends AST.Node
     this.body = body;
   }
 
-  resolve(syntax: DST.Scope, _semantic?: any): DST.Block {
+  async resolve(syntax: DST.Scope, _semantic?: any): Promise<DST.Block> {
     let block: DST.Block;
 
     if (this.body instanceof Block) {
       block = new DST.Block(this.body, syntax, this.safety);
 
       for (const expr of this.body.body) {
-        block.body.push(expr.resolve(block));
+        block.body.push(await expr.resolve(block));
       }
     } else {
       block = new DST.Block(undefined, syntax, this.safety);
-      block.body.push(ensureRVal(this.body.resolve(block), this.body.location));
+      block.body.push(
+        ensureRVal(await this.body.resolve(block), this.body.location),
+      );
     }
 
     return block;

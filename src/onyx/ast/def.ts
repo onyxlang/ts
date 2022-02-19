@@ -32,10 +32,10 @@ export class DefArg extends AST.Node
     this.value = value;
   }
 
-  resolve(
+  async resolve(
     syntax: DST.Scope,
     semantic: DST.FunctionDef,
-  ): DST.VariableDef {
+  ): Promise<DST.VariableDef> {
     const found = semantic.args.get(this.id.text);
 
     if (found) {
@@ -47,20 +47,22 @@ export class DefArg extends AST.Node
     }
 
     const restriction = syntax.find(this.type);
-    if (!(restriction instanceof DST.StructDef)) {
+    if (restriction instanceof DST.Void) {
+      throw new Panic(`Can't restrict to void`, this.type.location);
+    } else if (!(restriction instanceof DST.StructDef)) {
       throw new Panic(
         `Argument restriction must be a struct ID`,
-        restriction.astNode.location,
+        this.type.location,
+        [new Note(`Declared non-struct here`, restriction.idNode().location)],
       );
     }
 
     const value = this.value
-      ? ensureRVal(this.value!.resolve(syntax), this.value!.location)
+      ? ensureRVal(await this.value!.resolve(syntax), this.value!.location)
       : undefined;
 
     const variable = new DST.VariableDef(
       this,
-      this.id.text,
       new DST.Ref(this.type, restriction),
       value,
     );
@@ -72,9 +74,16 @@ export class DefArg extends AST.Node
   }
 }
 
+type DefModifier =
+  | Keyword<Lang.Keyword.BUILTIN>
+  | Keyword<Lang.Keyword.EXPORT>
+  | Keyword<Lang.Keyword.DEFAULT>;
+
 export default class Def extends AST.Node
   implements Resolvable<DST.FunctionDef>, Node {
-  readonly modifiers: Keyword<Lang.Keyword.BUILTIN>[];
+  readonly exportModifier?: Keyword<Lang.Keyword.EXPORT>;
+  readonly defaultModifier?: Keyword<Lang.Keyword.DEFAULT>;
+  readonly builtinModifier?: Keyword<Lang.Keyword.BUILTIN>;
   /** `def` */ readonly keyword: AST.Node;
   readonly id: AST.Node;
   readonly args: DefArg[];
@@ -84,8 +93,8 @@ export default class Def extends AST.Node
   constructor(
     location: peggy.LocationRange,
     text: string,
-    { modifiers = [], keyword, id, args, returnType, body }: {
-      modifiers: Keyword<Lang.Keyword.BUILTIN>[];
+    { modifiers: mods = [], keyword, id, args, returnType, body }: {
+      modifiers: DefModifier[];
       keyword: AST.Node;
       id: AST.Node;
       args: DefArg[];
@@ -94,7 +103,18 @@ export default class Def extends AST.Node
     },
   ) {
     super(location, text);
-    this.modifiers = modifiers;
+
+    this.exportModifier = mods.find((m) => m.kind == Lang.Keyword.EXPORT);
+    this.defaultModifier = mods.find((m) => m.kind == Lang.Keyword.DEFAULT);
+    if (this.defaultModifier && !this.exportModifier) {
+      throw new Panic(
+        "Can't have `default` without `export`",
+        this.defaultModifier.location,
+      );
+    }
+
+    this.builtinModifier = mods.find((m) => m.kind == Lang.Keyword.BUILTIN);
+
     this.keyword = keyword;
     this.id = id;
     this.args = args;
@@ -102,15 +122,17 @@ export default class Def extends AST.Node
     this.body = body;
   }
 
-  resolve(syntax: DST.Scope, _semantic?: any): DST.FunctionDef {
+  async resolve(syntax: DST.Scope, _semantic?: any): Promise<DST.FunctionDef> {
     let builtin: DST.BuiltinFunction | undefined;
     let storage: Lang.Storage;
     const safety = Lang.Safety.FRAGILE;
 
-    const returnType = this.returnType?.resolve(syntax);
+    const returnType = await this.returnType?.resolve(syntax);
 
     if (
-      returnType !== undefined && !(returnType.target instanceof DST.StructDef)
+      returnType !== undefined &&
+      !(returnType.target instanceof DST.StructDef ||
+        returnType.target instanceof DST.Void)
     ) {
       throw new Panic(
         `Expected function return type, got \`${returnType.idNode().text}\``,
@@ -118,23 +140,26 @@ export default class Def extends AST.Node
       );
     }
 
-    const builtinModifier = this.modifiers.find((m) =>
-      m.kind == Lang.Keyword.BUILTIN
-    );
-
-    if (builtinModifier) {
+    if (this.builtinModifier) {
       if (syntax instanceof DST.StructDef) {
         if (!returnType) {
           throw new Panic(
             `A builtin function must have its return type declared`,
-            builtinModifier.location,
+            this.builtinModifier.location,
           );
         }
 
         storage = Lang.Storage.INSTANCE;
 
         // TODO: Generalize.
-        const lookup = `${syntax.id}::${this.id.text}(${
+        //
+        // IDEA: Was `syntax.id`; when changed it to function (`id()=>string`),
+        // the interoplation continued to work. Onyx shall catch these.
+        //
+        // IDEA: Got a lot of bugs by making `resolve` async
+        // and forgetting to put `await` at every call site, recursively.
+        //
+        const lookup = `${syntax.id()}::${this.id.text}(${
           this.args.map((arg) => arg.type.text).join(`, `)
         }): ${this.returnType!.text}`;
 
@@ -167,7 +192,6 @@ export default class Def extends AST.Node
     const dst = new DST.FunctionDef({
       parent: syntax,
       astNode: this,
-      id: this.id.text,
       storage,
       safety,
       returnType,
@@ -175,17 +199,43 @@ export default class Def extends AST.Node
     });
 
     for (const arg of this.args) {
-      arg.resolve(syntax, dst);
+      await arg.resolve(syntax, dst);
     }
 
     // Shall store before compiling the body to make self-lookup possible.
     syntax.store(dst);
 
+    if (this.exportModifier) {
+      if (this.defaultModifier) {
+        const found = syntax.unit().defaultExport;
+
+        if (found) {
+          throw new Panic(
+            `Already have default export`,
+            this.defaultModifier.location,
+            [
+              new Note(
+                `Previously declared \`default\` here`,
+                found.defaultKeyword()!.location,
+              ),
+            ],
+          );
+        }
+
+        syntax.unit().defaultExport = dst;
+      } else {
+        throw new Panic(
+          `Non-default export is not implemented yet`,
+          this.exportModifier.location,
+        );
+      }
+    }
+
     if (builtin === undefined) {
       dst.body = new DST.Block(this.body!, syntax, safety, dst);
 
       for (const expr of this.body!.body) {
-        dst.body.store(expr.resolve(dst.body, undefined));
+        dst.body.store(await expr.resolve(dst.body, undefined));
       }
     }
 

@@ -12,4 +12,5 @@ export interface Type {
 
 export interface Identifiable {
   idNode(): AST.Node;
+  id(): string;
 }

@@ -29,10 +29,14 @@ export default class Final extends AST.Node
     this.value = value;
   }
 
-  resolve(syntax: DST.Scope, _semantic?: any): DST.VariableDef {
+  async resolve(syntax: DST.Scope, _semantic?: any): Promise<DST.VariableDef> {
     const found = syntax.lookup(this.id);
 
     if (found) {
+      if (found instanceof DST.Void) {
+        throw new Panic(`Can't name a variable \`void\``, this.id.location);
+      }
+
       throw new Panic(
         `Already declared variable \`${this.id.text}\``,
         this.id.location,
@@ -41,20 +45,23 @@ export default class Final extends AST.Node
     }
 
     const restriction = syntax.find(this.type);
-    if (!(restriction instanceof DST.StructDef)) {
+
+    if (restriction instanceof DST.Void) {
+      throw new Panic(`Can't restrict to void`, this.type.location);
+    } else if (!(restriction instanceof DST.StructDef)) {
       throw new Panic(
         `Variable restriction must be a struct ID`,
-        restriction.astNode.location,
+        this.type.location,
+        [new Note(`Declared non-struct here`, restriction.idNode().location)],
       );
     }
 
     const value = this.value
-      ? ensureRVal(this.value!.resolve(syntax), this.value!.location)
+      ? ensureRVal(await this.value!.resolve(syntax), this.value!.location)
       : undefined;
 
     const variable = new DST.VariableDef(
       this,
-      this.id.text,
       new DST.Ref(this.type, restriction),
       value,
     );

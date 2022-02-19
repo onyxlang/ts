@@ -6,7 +6,7 @@ import * as CDST from "../../c/dst.ts";
 import { Identifiable, Type } from "../../dst.ts";
 import { stringToBytes } from "../../util.ts";
 
-import { Mappable, RuntimeValue, Scope } from "../dst.ts";
+import { Mappable, RuntimeValue, Scope, Void } from "../dst.ts";
 
 import VariableDef from "./variable.ts";
 import FunctionDef from "./function.ts";
@@ -18,21 +18,13 @@ export default class Ref
     RuntimeValue,
     Mappable<OnyxAST.ID | OnyxAST.CID | OnyxAST.Query | undefined> {
   readonly astNode: OnyxAST.ID | OnyxAST.CID | OnyxAST.Query;
-  readonly target:
-    | VariableDef
-    | FunctionDef
-    | StructDef
-    | CDST.Function
-    | CDST.TypeRef;
+
+  // TODO: `Referenceable`?
+  readonly target: Identifiable | Void;
 
   constructor(
     astNode: OnyxAST.ID | OnyxAST.CID | OnyxAST.Query,
-    target:
-      | VariableDef
-      | FunctionDef
-      | StructDef
-      | CDST.Function
-      | CDST.TypeRef,
+    target: Identifiable | Void,
   ) {
     this.astNode = astNode;
     this.target = target;
@@ -45,8 +37,14 @@ export default class Ref
       return this.target.inferReturnType(scope);
     } else if (this.target instanceof VariableDef) {
       return this.target.inferType(scope);
-    } else {
+    } else if (
+      this.target instanceof StructDef || this.target instanceof CDST.TypeRef
+    ) {
       return this.target;
+    } else {
+      throw new Error(
+        `Unhandled case, target is \`${this.target.constructor.name}\``,
+      );
     }
   }
 
@@ -60,12 +58,19 @@ export default class Ref
           await output.write(stringToBytes(`i32`));
           return;
       }
+    } else if (this.target instanceof Void) {
+      await output.write(stringToBytes(`void`));
+      return;
     }
 
-    await output.write(stringToBytes(this.target.id));
+    await output.write(stringToBytes(this.target.id()));
   }
 
   idNode(): AST.Node {
-    return this.target.idNode();
+    return this.astNode;
+  }
+
+  id(): string {
+    return this.idNode().text;
   }
 }

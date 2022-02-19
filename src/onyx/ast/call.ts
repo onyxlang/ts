@@ -28,7 +28,7 @@ export class UnOp extends AST.Node implements Resolvable<DST.Call>, Node {
     this.operand = operand;
   }
 
-  resolve(syntax: DST.Scope, _semantic?: any): DST.Call {
+  resolve(syntax: DST.Scope, _semantic?: any): Promise<DST.Call> {
     return Call.resolveGeneric(this, syntax, this.operand, this.operator, [
       this.operand,
     ]);
@@ -60,7 +60,7 @@ export class BinOp extends AST.Node implements Resolvable<DST.Call>, Node {
     this.right = right;
   }
 
-  resolve(syntax: DST.Scope, _semantic?: any): DST.Call {
+  resolve(syntax: DST.Scope, _semantic?: any): Promise<DST.Call> {
     return Call.resolveGeneric(this, syntax, this.left, this.operator, [
       this.left,
       this.right,
@@ -91,13 +91,13 @@ export default class Call extends AST.Node
     this.args = args;
   }
 
-  static resolveGeneric(
+  static async resolveGeneric(
     astNode: UnOp | BinOp | Call,
     syntaxScope: DST.Scope,
     callerNode: RVal | undefined, // `n` in `n < 1`
     calleeNode: CID | ID | Query, // `$puts()` | `foo()` | `foo.bar()` | `n < 1`
     argNodes: RVal[],
-  ): DST.Call {
+  ): Promise<DST.Call> {
     const args = new Array<DST.RuntimeValue>();
 
     // For `foo.bar()` call, implicitly pass `foo` as the first argument.
@@ -106,14 +106,14 @@ export default class Call extends AST.Node
     ) {
       args.push(
         ensureRVal(
-          calleeNode.container!.resolve(syntaxScope),
+          await calleeNode.container!.resolve(syntaxScope),
           calleeNode.container!.location,
         ),
       );
     }
 
     for (const arg of argNodes) {
-      args.push(ensureRVal(arg.resolve(syntaxScope), arg.location));
+      args.push(ensureRVal(await arg.resolve(syntaxScope), arg.location));
     }
 
     const argTypes = new Array<GenericDST.Type>();
@@ -126,7 +126,7 @@ export default class Call extends AST.Node
 
     if (callerNode) {
       const caller = ensureRVal(
-        callerNode.resolve(syntaxScope),
+        await callerNode.resolve(syntaxScope),
         callerNode.location,
       );
 
@@ -143,7 +143,7 @@ export default class Call extends AST.Node
       resolveScope = callerType;
     }
 
-    const callee = calleeNode.resolve(resolveScope);
+    const callee = await calleeNode.resolve(resolveScope);
 
     if (
       !(callee.target instanceof DST.FunctionDef ||
@@ -184,7 +184,7 @@ export default class Call extends AST.Node
     return new DST.Call(astNode, callee, args);
   }
 
-  resolve(syntax: DST.Scope, _semantic?: any): DST.Call {
+  resolve(syntax: DST.Scope, _semantic?: any): Promise<DST.Call> {
     return Call.resolveGeneric(
       this,
       syntax,

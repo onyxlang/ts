@@ -1,0 +1,10 @@
+import Bool from "./builtin/bool.nx"
+import Int32 from "./builtin/int.nx"
+
+extern _Noreturn exit(int exit_code);
+
+export default def assert(cond: Bool): void {
+  if (!cond) {
+    unsafe! $exit(1)
+  }
+}

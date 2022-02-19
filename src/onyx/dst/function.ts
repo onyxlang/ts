@@ -1,9 +1,9 @@
 import { BufWriter } from "https://deno.land/std@0.123.0/io/buffer.ts";
 
 import * as Lang from "../lang.ts";
-import * as AST from "../../ast.ts";
-import * as OnyxAST from "../ast.ts";
-import { compareTypes } from "../dst.ts";
+import * as GenericAST from "../../ast.ts";
+import * as AST from "../ast.ts";
+import { compareTypes, Exportable } from "../dst.ts";
 import { Identifiable, Type } from "../../dst.ts";
 import { stringToBytes } from "../../util.ts";
 import Panic from "../../panic.ts";
@@ -13,6 +13,7 @@ import { Mappable, Scope } from "../dst.ts";
 import Block from "./block.ts";
 import Ref from "./ref.ts";
 import VariableDef from "./variable.ts";
+import Unit from "../../unit.ts";
 
 export enum BuiltinFunction {
   "Bool::!(Bool): Bool",
@@ -24,10 +25,9 @@ export enum BuiltinFunction {
 }
 
 export default class FunctionDef
-  implements Identifiable, Mappable<OnyxAST.Def> {
+  implements Identifiable, Mappable<AST.Def>, Exportable {
   readonly parent: Scope;
-  readonly astNode: OnyxAST.Def;
-  readonly id: string;
+  readonly astNode: AST.Def;
   readonly args = new Map<string, VariableDef>();
   body?: Block;
   readonly returnType?: Ref;
@@ -39,16 +39,14 @@ export default class FunctionDef
     {
       astNode,
       parent,
-      id,
       storage,
       safety,
       returnType,
       builtin,
       body,
     }: {
-      astNode: OnyxAST.Def;
+      astNode: AST.Def;
       parent: Scope;
-      id: string;
       storage: Lang.Storage;
       safety: Lang.Safety;
       returnType?: Ref;
@@ -58,7 +56,6 @@ export default class FunctionDef
   ) {
     this.astNode = astNode;
     this.parent = parent;
-    this.id = id;
     this.body = body;
     this.builtin = builtin;
     this.storage = storage;
@@ -68,18 +65,34 @@ export default class FunctionDef
     if (builtin && !returnType) {
       throw new Panic(
         `A builtin function must have its return value declared`,
-        astNode.modifiers.find((m) => m.text == "@builtin")?.location,
+        astNode.builtinModifier!.location,
       );
     }
   }
 
-  idNode(): AST.Node {
+  unit(): Unit {
+    return this.parent.unit();
+  }
+
+  idNode(): GenericAST.Node {
     return this.astNode.id;
+  }
+
+  id(): string {
+    return this.idNode().text;
+  }
+
+  exportKeyword(): AST.Keyword<Lang.Keyword.EXPORT> | undefined {
+    return this.astNode.exportModifier;
+  }
+
+  defaultKeyword(): AST.Keyword<Lang.Keyword.DEFAULT> | undefined {
+    return this.astNode.defaultModifier;
   }
 
   async lower(output: BufWriter, env: any) {
     if (this.body instanceof Block) {
-      await output.write(stringToBytes(`fn ${this.id}(`));
+      await output.write(stringToBytes(`pub fn ${this.id()}(`));
 
       let first = true;
       for (const [_, arg] of this.args) {

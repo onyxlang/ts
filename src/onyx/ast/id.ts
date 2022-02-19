@@ -7,13 +7,13 @@ import * as AST from "../../ast.ts";
 import Panic from "../../panic.ts";
 import { ensureRVal, Node, Resolvable, RVal } from "../ast.ts";
 
-// An identifier, like `foo`.
+// An freestanding identifier, like `foo`.
 export class ID extends AST.Node implements Resolvable<DST.Ref>, Node {
-  resolve(
+  async resolve(
     syntax: DST.Scope,
     _semantic?: any,
-  ): DST.Ref {
-    return new DST.Ref(this, syntax.find(this));
+  ): Promise<DST.Ref> {
+    return await new DST.Ref(this, syntax.find(this));
   }
 }
 
@@ -29,11 +29,11 @@ export class CID extends AST.Node implements Resolvable<DST.Ref> {
     this.value = value;
   }
 
-  resolve(
+  async resolve(
     syntax: DST.Scope,
     _semantic?: any,
-  ): DST.Ref {
-    return new DST.Ref(this, syntax.unit().program.cDST.find(this.value));
+  ): Promise<DST.Ref> {
+    return await new DST.Ref(this, syntax.unit().program.cDST.find(this.value));
   }
 }
 
@@ -57,13 +57,13 @@ export class Query extends AST.Node implements Resolvable<DST.Ref>, Node {
     this.id = id;
   }
 
-  resolve(
+  async resolve(
     syntax: DST.Scope,
     _semantic?: any,
-  ): DST.Ref {
+  ): Promise<DST.Ref> {
     if (this.container) {
       const container = ensureRVal(
-        this.container.resolve(syntax),
+        await this.container.resolve(syntax),
         this.container.location,
       );
 

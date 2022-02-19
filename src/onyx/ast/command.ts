@@ -17,10 +17,10 @@ export class Return extends AST.Node implements Resolvable<DST.Return>, Node {
     this.value = value;
   }
 
-  resolve(syntax: DST.Scope, _semantic?: any): DST.Return {
+  async resolve(syntax: DST.Scope, _semantic?: any): Promise<DST.Return> {
     if (this.value) {
       const resolved = ensureRVal(
-        this.value.resolve(syntax),
+        await this.value.resolve(syntax),
         this.value.location,
       );
       return new DST.Return(this, resolved);

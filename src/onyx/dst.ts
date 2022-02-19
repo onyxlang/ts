@@ -1,6 +1,8 @@
 import { BufWriter } from "https://deno.land/std@0.123.0/io/buffer.ts";
 import * as Lang from "./lang.ts";
-import * as AST from "../ast.ts";
+import * as AST from "./ast.ts";
+import * as GenericAST from "../ast.ts";
+import * as GenericDST from "../dst.ts";
 import { Type } from "../dst.ts";
 import Unit from "../unit.ts";
 
@@ -15,6 +17,9 @@ export { default as Void } from "./dst/void.ts";
 import Extern from "./dst/extern.ts";
 export { default as Extern } from "./dst/extern.ts";
 
+import Import from "./dst/import.ts";
+export { default as Import } from "./dst/import.ts";
+
 import StructDef from "./dst/struct.ts";
 export { BuiltinStruct, default as StructDef } from "./dst/struct.ts";
 
@@ -27,17 +32,17 @@ export { default as VariableDef } from "./dst/variable.ts";
 import { If } from "./dst/branching.ts";
 export { Case, If } from "./dst/branching.ts";
 
-import { IntLiteral } from "./dst/literal.ts";
-export { IntLiteral } from "./dst/literal.ts";
+import { IntLiteral, StringLiteral } from "./dst/literal.ts";
+export * from "./dst/literal.ts";
 
 import { Return } from "./dst/command.ts";
 export { Return } from "./dst/command.ts";
 
-export type Directive = Extern;
+export type Directive = Extern | Import;
 export type Declaration = VariableDef | FunctionDef | StructDef;
 export type Statement = If;
 export type Instruction = Return;
-export type Literal = IntLiteral;
+export type Literal = IntLiteral | StringLiteral;
 export type Expression = Declaration | Statement | Instruction | RuntimeValue;
 
 export const UNIVERSE = {
@@ -56,16 +61,22 @@ export interface Scope {
   scopeId(): string;
   unit(): Unit;
   lookup(
-    id: AST.Node | string,
-  ): VariableDef | StructDef | FunctionDef | undefined;
-  find(id: AST.Node | string): VariableDef | StructDef | FunctionDef;
-  store(
-    entity: VariableDef | StructDef | FunctionDef | Expression,
-  ): typeof entity;
+    id: GenericAST.Node | string,
+  ): GenericDST.Identifiable | Void | undefined;
+  find(id: GenericAST.Node | string): GenericDST.Identifiable | Void;
+  store(entity: GenericDST.Identifiable | Expression): typeof entity;
 }
 
 export interface Mappable<T> {
   readonly astNode: T;
+}
+
+export interface Exportable {
+  exportKeyword(): AST.Keyword<Lang.Keyword.EXPORT> | undefined;
+  defaultKeyword(): AST.Keyword<Lang.Keyword.DEFAULT> | undefined;
+  unit(): Unit;
+  id(): string;
+  idNode(): GenericAST.Node; // TODO: Ditto.
 }
 
 export function compareTypes(_a: Type, _b: Type): number {

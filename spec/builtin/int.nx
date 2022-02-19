@@ -1,0 +1,9 @@
+import Bool from "./bool.nx"
+
+export default builtin struct Int32 {
+  builtin def   -(this: Int32, another: Int32): Int32
+  builtin def   +(this: Int32, another: Int32): Int32
+  builtin def   <(this: Int32, another: Int32): Bool
+  builtin def  <=(this: Int32, another: Int32): Bool
+  builtin def eq?(this: Int32, another: Int32): Bool
+}

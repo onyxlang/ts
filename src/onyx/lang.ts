@@ -1,4 +1,12 @@
 export enum Keyword {
+  // Modules
+  //
+
+  IMPORT = "import",
+  FROM = "from",
+  EXPORT = "export",
+  DEFAULT = "default",
+
   // Safety
   //
 

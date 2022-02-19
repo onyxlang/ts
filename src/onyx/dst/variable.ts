@@ -13,18 +13,15 @@ import Ref from "./ref.ts";
 export default class VariableDef
   implements Lowerable, Identifiable, Mappable<OnyxAST.Final | OnyxAST.DefArg> {
   readonly astNode: OnyxAST.Final | OnyxAST.DefArg;
-  readonly id: string;
   readonly type: Ref;
   readonly value?: Expression;
 
   constructor(
     astNode: OnyxAST.Final | OnyxAST.DefArg,
-    id: string,
     type: Ref,
     value?: Expression,
   ) {
     this.astNode = astNode;
-    this.id = id;
     this.type = type;
     this.value = value;
   }
@@ -33,11 +30,15 @@ export default class VariableDef
     return this.astNode.id;
   }
 
+  id(): string {
+    return this.idNode().text;
+  }
+
   async lower(output: BufWriter, env: any) {
     if (this.astNode instanceof OnyxAST.DefArg) {
-      await output.write(stringToBytes(`${this.id}: `));
+      await output.write(stringToBytes(`${this.id()}: `));
     } else {
-      await output.write(stringToBytes(`const ${this.id}: `));
+      await output.write(stringToBytes(`const ${this.id()}: `));
     }
 
     await this.type.lower(output, env);

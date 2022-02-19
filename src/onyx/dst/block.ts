@@ -3,8 +3,8 @@ import { BufWriter } from "https://deno.land/std@0.123.0/io/buffer.ts";
 import * as Lang from "../lang.ts";
 import * as AST from "../../ast.ts";
 import * as OnyxAST from "../ast.ts";
-import { Expression, UNIVERSE } from "../dst.ts";
-import { Lowerable, Type } from "../../dst.ts";
+import { Expression, UNIVERSE, Void } from "../dst.ts";
+import { Identifiable, Lowerable, Type } from "../../dst.ts";
 import Unit from "../../unit.ts";
 import Panic from "../../panic.ts";
 
@@ -46,8 +46,8 @@ export default class Block
 
   lookup(
     id: AST.Node | string,
-  ): FunctionDef | StructDef | VariableDef | undefined {
-    let found: FunctionDef | StructDef | VariableDef | undefined;
+  ): Identifiable | Void | undefined {
+    let found: Identifiable | Void | undefined;
     const text = id instanceof AST.Node ? id.text : id;
 
     if (this.semanticScope) {
@@ -68,7 +68,7 @@ export default class Block
     else return found;
   }
 
-  find(id: AST.Node | string): FunctionDef | StructDef | VariableDef {
+  find(id: AST.Node | string): Identifiable | Void {
     const found = this.lookup(id);
 
     if (!found) {
@@ -83,13 +83,11 @@ export default class Block
     }
   }
 
-  store(
-    entity: VariableDef | StructDef | FunctionDef | Expression,
-  ): typeof entity {
-    if (entity instanceof VariableDef) this.variables.set(entity.id, entity);
-    if (entity instanceof StructDef) this.structs.set(entity.id, entity);
-    if (entity instanceof FunctionDef) this.functions.set(entity.id, entity);
-    else this.body.push(entity);
+  store(entity: Identifiable | Expression): typeof entity {
+    if (entity instanceof VariableDef) this.variables.set(entity.id(), entity);
+    if (entity instanceof StructDef) this.structs.set(entity.id(), entity);
+    if (entity instanceof FunctionDef) this.functions.set(entity.id(), entity);
+    else this.body.push(entity as Expression); // FIXME: Potential bug
     return entity;
   }
 

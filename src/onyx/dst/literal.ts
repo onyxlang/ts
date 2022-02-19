@@ -1,7 +1,7 @@
 import { BufWriter } from "https://deno.land/std@0.123.0/io/buffer.ts";
 
 import * as OnyxAST from "../ast.ts";
-import { Lowerable } from "../../dst.ts";
+import { Lowerable, Type } from "../../dst.ts";
 import { stringToBytes } from "../../util.ts";
 import Panic from "../../panic.ts";
 
@@ -38,5 +38,26 @@ export class IntLiteral
     }
 
     return found;
+  }
+}
+
+export class StringLiteral
+  implements Lowerable, RuntimeValue, Mappable<OnyxAST.StringLiteral> {
+  readonly astNode: OnyxAST.StringLiteral;
+
+  constructor(astNode: OnyxAST.StringLiteral) {
+    this.astNode = astNode;
+  }
+
+  value(): string {
+    return this.astNode.value;
+  }
+
+  lower(_output: BufWriter, _env: any): Promise<void> {
+    throw new Error("Method not implemented.");
+  }
+
+  inferType(_scope: Scope): Type {
+    throw new Error("Method not implemented.");
   }
 }

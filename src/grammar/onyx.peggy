@@ -51,11 +51,11 @@ term = sp? ((';' wsp?) / nl+ / &')' / &'}' / &']' / &'>' / &EOF)
 // Higher-level structure
 //
 
-directive = extern
+directive = extern / import
 declaration = final / struct / def
 statement = explicit_safety / if
 instruction = return
-literal = int_literal
+literal = int_literal / string_literal
 expression = declaration / statement / instruction / rval
 
 top_level = wsp?
@@ -74,6 +74,10 @@ extern = keyword:kw_extern sp value:c_prototype {
   return new Onyx.AST.Extern(location(), text(), { keyword, value })
 }
 
+import = keyword:kw_import sp alias:id sp kw_from sp from:string_literal {
+  return new Onyx.AST.Import(location(), text(), { keyword, alias, from })
+}
+
 // Declaration
 //
 
@@ -82,11 +86,18 @@ final = kw_final sp id:id type:(sp? ':' sp? @id)? value:(sp? '=' nadj? @rval) {
   return new Onyx.AST.Final(location(), text(), { id, type, value })
 }
 
-struct = builtin:kw_builtin sp kw_struct sp id:id sp? body:block {
+struct =
+  kwExport:(@kw_export sp)?
+  kwDefault:(@kw_default sp)?
+  builtin:kw_builtin sp
+  kw_struct sp id:id sp? body:block
+{
   trace(`struct`)
 
   const modifiers = []
   if (builtin) modifiers.push(builtin)
+  if (kwExport) modifiers.push(kwExport)
+  if (kwDefault) modifiers.push(kwDefault)
 
   return new Onyx.AST.Struct(location(), text(), { modifiers, id, body })
 }
@@ -100,6 +111,8 @@ def_args = head:def_arg? tail:(sp? ',' nadj? @def_arg)* {
 }
 
 def =
+  kwExport:(@kw_export sp)?
+  kwDefault:(@kw_default sp)?
   builtin:(@kw_builtin sp)?
   keyword:kw_def sp
   id:(unary_operator / binary_operator / id) sp?
@@ -111,6 +124,8 @@ def =
 
   const modifiers = []
   if (builtin) modifiers.push(builtin)
+  if (kwExport) modifiers.push(kwExport)
+  if (kwDefault) modifiers.push(kwDefault)
 
   return new Onyx.AST.Def(location(), text(), {
     modifiers,
@@ -304,6 +319,10 @@ int_literal = @'0' ![0-9] / $([1-9] [0-9]*) {
   return new Onyx.AST.IntLiteral(location(), text())
 }
 
+string_literal = '"' value:$([^"\\] / "\\" .)* '"' {
+  return new Onyx.AST.StringLiteral(location(), text(), { value })
+}
+
 // Expression
 //
 
@@ -360,6 +379,11 @@ c_prototype = returnType:c_type_ref sp id:c_id sp? args:c_proto_args sp? ';' {
 //
 
 nkw = ![a-zA-Z_0-9!] // "Not keyword"
+
+kw_import = "import" nkw { return keyword(Onyx.Lang.Keyword.IMPORT) }
+kw_from = "from" nkw { return keyword(Onyx.Lang.Keyword.FROM) }
+kw_export = "export" nkw { return keyword(Onyx.Lang.Keyword.EXPORT) }
+kw_default = "default" nkw { return keyword(Onyx.Lang.Keyword.DEFAULT) }
 
 kw_extern = "extern" nkw { return keyword(Onyx.Lang.Keyword.EXTERN) }
 kw_builtin = "builtin" nkw { return keyword(Onyx.Lang.Keyword.BUILTIN) }

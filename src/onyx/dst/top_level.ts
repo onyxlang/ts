@@ -2,9 +2,9 @@ import { BufWriter } from "https://deno.land/std@0.123.0/io/buffer.ts";
 
 import * as Lang from "../lang.ts";
 import * as AST from "../../ast.ts";
-import { Expression } from "../dst.ts";
+import { Expression, Import, UNIVERSE, Void } from "../dst.ts";
 import * as CDST from "../../c/dst.ts";
-import { Lowerable } from "../../dst.ts";
+import { Identifiable, Lowerable } from "../../dst.ts";
 import { stringToBytes } from "../../util.ts";
 import Unit from "../../unit.ts";
 import Panic from "../../panic.ts";
@@ -12,6 +12,7 @@ import Panic from "../../panic.ts";
 import { Scope } from "../dst.ts";
 
 import Extern from "./extern.ts";
+import Call from "./call.ts";
 import StructDef from "./struct.ts";
 import VariableDef from "./variable.ts";
 import FunctionDef from "../dst/function.ts";
@@ -20,6 +21,7 @@ export default class TopLevel implements Lowerable, Scope {
   readonly safety = Lang.Safety.FRAGILE;
 
   readonly externs = new Array<Extern>();
+  readonly imports = new Array<Import>();
   private readonly structs = new Map<string, StructDef>();
   private readonly functions = new Map<string, FunctionDef>();
   private readonly variables = new Map<string, VariableDef>();
@@ -36,9 +38,14 @@ export default class TopLevel implements Lowerable, Scope {
 
   lookup(
     id: AST.Node | string,
-  ): VariableDef | FunctionDef | StructDef | undefined {
+  ): Identifiable | Void | undefined {
     const text = id instanceof AST.Node ? id.text : id;
-    let found: VariableDef | FunctionDef | StructDef | undefined;
+    if (text == "void") return UNIVERSE.Void;
+
+    let found: Identifiable | undefined;
+
+    found = this._unit.imports.get(text);
+    if (found) return found;
 
     found = this.structs.get(text);
     if (found) return found;
@@ -50,7 +57,7 @@ export default class TopLevel implements Lowerable, Scope {
     if (found) return found;
   }
 
-  find(id: AST.Node | string): VariableDef | FunctionDef | StructDef {
+  find(id: AST.Node | string): Identifiable | Void {
     const text = id instanceof AST.Node ? id.text : id;
     const found = this.lookup(id);
 
@@ -67,10 +74,10 @@ export default class TopLevel implements Lowerable, Scope {
   store(
     entity: VariableDef | StructDef | FunctionDef | Expression,
   ): typeof entity {
-    if (entity instanceof VariableDef) this.variables.set(entity.id, entity);
-    else if (entity instanceof StructDef) this.structs.set(entity.id, entity);
+    if (entity instanceof VariableDef) this.variables.set(entity.id(), entity);
+    else if (entity instanceof StructDef) this.structs.set(entity.id(), entity);
     else if (entity instanceof FunctionDef) {
-      this.functions.set(entity.id, entity);
+      this.functions.set(entity.id(), entity);
     } else this.expressions.push(entity);
 
     return entity;
@@ -88,6 +95,11 @@ export default class TopLevel implements Lowerable, Scope {
     output: BufWriter,
     env: { safety: Lang.Safety } = { safety: Lang.Safety.FRAGILE },
   ) {
+    for (const _import of this.imports) {
+      await _import.lower(output, env);
+      await output.write(stringToBytes(`\n`));
+    }
+
     for (const extern of this.externs) {
       await extern.lower(output, env);
       await output.write(stringToBytes(`\n`));
@@ -112,6 +124,7 @@ export default class TopLevel implements Lowerable, Scope {
 
     for (const expr of this.expressions) {
       await expr.lower(output, env);
+      if (expr instanceof Call) await output.write(stringToBytes(`;`));
       await output.write(stringToBytes(`\n`));
     }
 

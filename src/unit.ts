@@ -34,6 +34,13 @@ export default class Unit {
   private _dst?: OnyxDST.TopLevel;
   private _loweredModulePath?: string;
 
+  defaultExport?: OnyxDST.Exportable;
+  readonly imports = new Map<string, OnyxDST.Exportable>();
+
+  cachedPath(): Promise<string> {
+    return this.program.cachePath(this.filePath, ".zig");
+  }
+
   loweredModulePath(): string {
     if (!this._loweredModulePath) {
       throw new Error(
@@ -65,20 +72,23 @@ export default class Unit {
     this._ast = await parse(this.filePath);
   }
 
-  compile() {
-    if (!this.parsed()) this.parse();
+  async compile() {
+    if (!this.parsed()) await this.parse();
     this._dst = new OnyxDST.TopLevel(this);
 
+    console.debug(`Compiling ${this.filePath}...`);
     for (const node of this._ast!) {
-      node.resolve(this._dst);
+      const dst = await node.resolve(this._dst);
+      if (dst instanceof OnyxDST.Call) this._dst.store(dst);
+      if (dst instanceof OnyxDST.Import) this._dst.imports.push(dst);
     }
   }
 
   async lower(): Promise<string> {
-    if (!this.compiled()) this.compile();
+    if (!this.compiled()) await this.compile();
 
-    const output_path = await this.program.cachePath(this.filePath, ".zig");
-    console.debug(`Lowering to ${output_path}`);
+    const output_path = await this.cachedPath();
+    console.debug(`Lowering ${this.filePath} to ${output_path}...`);
 
     await Deno.mkdir(pathAPI.dirname(output_path), { recursive: true });
 

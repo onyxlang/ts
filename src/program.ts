@@ -8,7 +8,7 @@ import * as CDST from "./c/dst.ts";
  * It also maintains the global C AST.
  */
 export default class Program {
-  private _units = new Array<Unit>();
+  private _units = new Map<string, Unit>();
   private _entry: Unit;
   private _cacheDir?: string;
   readonly cDST = new CDST.TopLevel();
@@ -19,13 +19,20 @@ export default class Program {
 
   static async compile(entryPath: string, cacheDir?: string): Promise<Program> {
     const program = new Program(entryPath, cacheDir);
+
     await program.entry().parse();
-    await program.entry().lower();
+    await program.entry().compile();
+
+    for (const [_, unit] of program._units) {
+      await unit.lower();
+    }
+
     return program;
   }
 
   constructor(entryPath: string, cache_dir?: string) {
     const unit = this.createUnit(entryPath);
+    this._units.set(entryPath, unit);
     this._entry = unit;
     this._cacheDir = cache_dir;
   }
@@ -33,13 +40,36 @@ export default class Program {
   /**
    * Create and return a new compilation unit at _path_, linked to the program.
    *
-   * @param path Source file path
-   * @returns    Newly created unit instance
+   * @param {string} path Source file path
+   * @returns Newly created unit instance
+   * @throws {Error} If already has unit at this path
    */
   createUnit(path: string): Unit {
+    if (this._units.get(path)) {
+      throw new Error(`Already created unit at ${path}`);
+    }
+
     const unit = new Unit(this, path);
-    this._units.push(unit);
+    this._units.set(path, unit);
+
     return unit;
+  }
+
+  /**
+   * Find an already compiled unit at _path_.
+   * If it's not there yet, would compile.
+   */
+  async findOrCompileUnit(path: string): Promise<Unit> {
+    const found = this._units.get(path);
+
+    if (found) {
+      if (!found.compiled()) await found.compile();
+      return found;
+    } else {
+      const unit = this.createUnit(path);
+      await unit.compile();
+      return unit;
+    }
   }
 
   /**

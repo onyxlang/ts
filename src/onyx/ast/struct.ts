@@ -14,29 +14,47 @@ import Def from "./def.ts";
 export default class Struct extends AST.Node
   implements Resolvable<DST.StructDef>, Node {
   // TODO: readonly keyword: Keyword<Lang.Keyword.STRUCT>;
-  readonly modifiers: Keyword<Lang.Keyword.BUILTIN>[];
+  readonly exportModifier?: Keyword<Lang.Keyword.EXPORT>;
+  readonly defaultModifier?: Keyword<Lang.Keyword.DEFAULT>;
+  readonly builtinModifier?: Keyword<Lang.Keyword.BUILTIN>;
   readonly id: AST.Node;
   readonly body: Block;
 
   constructor(
     location: peggy.LocationRange,
     text: string,
-    { modifiers, id, body }: {
+    // IDEA: `{ modifiers: mods: T }`?
+    { modifiers: mods, id, body }: {
       modifiers: Keyword<Lang.Keyword.BUILTIN>[];
       id: AST.Node;
       body: Block;
     },
   ) {
     super(location, text);
-    this.modifiers = modifiers;
+
+    this.exportModifier = mods.find((m) => m.kind == Lang.Keyword.EXPORT);
+    this.defaultModifier = mods.find((m) => m.kind == Lang.Keyword.DEFAULT);
+    if (this.defaultModifier && !this.exportModifier) {
+      throw new Panic(
+        "Can't have `default` without `export`",
+        this.defaultModifier.location,
+      );
+    }
+
+    this.builtinModifier = mods.find((m) => m.kind == Lang.Keyword.BUILTIN);
+
     this.id = id;
     this.body = body;
   }
 
-  resolve(syntax: DST.Scope, _semantic?: any): DST.StructDef {
+  async resolve(syntax: DST.Scope, _semantic?: any): Promise<DST.StructDef> {
     const found = syntax.lookup(this.id);
 
     if (found) {
+      if (found instanceof DST.Void) {
+        throw new Panic(`Can't name a struct \`void\``, this.id.location);
+      }
+
       throw new Panic(
         `Already declared \`${this.id.text}\``,
         this.id.location,
@@ -49,7 +67,7 @@ export default class Struct extends AST.Node
     //
 
     let builtin: DST.BuiltinStruct | undefined;
-    if (this.modifiers.find((m) => m.kind == Lang.Keyword.BUILTIN)) {
+    if (this.builtinModifier) {
       builtin = (<any> DST.BuiltinStruct)[this.id.text];
 
       if (!builtin) {
@@ -60,12 +78,38 @@ export default class Struct extends AST.Node
       }
     }
 
-    const dst = new DST.StructDef(syntax, this, this.id.text, builtin);
+    const dst = new DST.StructDef(syntax, this, builtin);
     syntax.store(dst);
+
+    if (this.exportModifier) {
+      if (this.defaultModifier) {
+        const found = syntax.unit().defaultExport;
+
+        if (found) {
+          throw new Panic(
+            `Already have default export`,
+            this.defaultModifier.location,
+            [
+              new Note(
+                `Previously declared \`default\` here`,
+                found.defaultKeyword()!.location,
+              ),
+            ],
+          );
+        }
+
+        syntax.unit().defaultExport = dst;
+      } else {
+        throw new Panic(
+          `Non-default export is not implemented yet`,
+          this.exportModifier.location,
+        );
+      }
+    }
 
     for (const def of this.body.body) {
       if (def instanceof Def) {
-        this.resolveMethod(dst, def);
+        await this.resolveMethod(dst, def);
       } else {
         throw new Panic("A struct may only contain methods", def.location);
       }
@@ -74,15 +118,19 @@ export default class Struct extends AST.Node
     return dst;
   }
 
-  resolveMethod(dst: DST.StructDef, def: Def): DST.FunctionDef {
+  async resolveMethod(dst: DST.StructDef, def: Def): Promise<DST.FunctionDef> {
     const found = dst.lookup(def.id);
 
     if (found) {
+      if (found instanceof DST.Void) {
+        throw new Panic(`Can't name a function \`void\``, this.id.location);
+      }
+
       throw new Panic(`Already defined \`${found.id}\``, def.id.location, [
-        new Note(`Previously defined here`, found.astNode.id.location),
+        new Note(`Previously defined here`, found.idNode().location),
       ]);
     }
 
-    return dst.store(def.resolve(dst)) as DST.FunctionDef;
+    return dst.store(await def.resolve(dst)) as DST.FunctionDef;
   }
 }

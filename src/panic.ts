@@ -4,6 +4,7 @@ import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15
 // @deno-types="https://deno.land/x/chalk_deno@v4.1.1-deno/index.d.ts"
 import chalk from "https://deno.land/x/chalk_deno@v4.1.1-deno/source/index.js";
 
+import * as GenericAST from "./ast.ts";
 import { readLine } from "./util.ts";
 
 export class Note {
@@ -88,5 +89,17 @@ export default class Panic extends Error {
     if (backtrace) {
       console.error(this.stack);
     }
+  }
+}
+
+export class AlreadyDeclared extends Panic {
+  constructor(requested: GenericAST.Node, declared?: GenericAST.Node) {
+    const notes = [];
+
+    if (declared) {
+      notes.push(new Note(`Previously declared here`, declared.location));
+    }
+
+    super(`Already declared \`${requested.text}\``, requested.location, notes);
   }
 }

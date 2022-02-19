@@ -80,7 +80,7 @@ export class Prototype extends AST.Node implements Resolvable<DST.Function> {
         else throw new Panic("Can't use function here", arg.type.location);
       }
 
-      const dst = new DST.Function(this, this.id.text, returnType, args);
+      const dst = new DST.Function(this, returnType, args);
       scope.store(dst);
 
       return dst;

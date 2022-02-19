@@ -15,16 +15,14 @@ export interface Scope {
 
 export class TypeRef implements Lowerable, Type, Identifiable {
   readonly astNode: GenAST.Node;
-  readonly id: string;
 
-  constructor(astNode: GenAST.Node, id: string) {
+  constructor(astNode: GenAST.Node) {
     this.astNode = astNode;
-    this.id = id;
   }
 
   async lower(output: BufWriter) {
     let zigType: string;
-    const builtin = enumFromStringValue(Lang.BuiltinType, this.id);
+    const builtin = enumFromStringValue(Lang.BuiltinType, this.id());
 
     switch (builtin) {
       case Lang.BuiltinType.NORETURN:
@@ -41,11 +39,15 @@ export class TypeRef implements Lowerable, Type, Identifiable {
   }
 
   name(): string {
-    return this.id;
+    return this.id();
   }
 
   idNode(): GenAST.Node {
     return this.astNode;
+  }
+
+  id(): string {
+    return this.idNode().text;
   }
 
   inferType(_scope: any): Type {
@@ -55,18 +57,15 @@ export class TypeRef implements Lowerable, Type, Identifiable {
 
 export class Function implements Lowerable, Identifiable {
   readonly astNode: AST.Prototype;
-  readonly id: string;
   readonly returned: TypeRef;
   readonly args: TypeRef[];
 
   constructor(
     astNode: AST.Prototype,
-    id: string,
     returned: TypeRef,
     args: TypeRef[],
   ) {
     this.astNode = astNode;
-    this.id = id;
     this.returned = returned;
     this.args = args;
   }
@@ -75,12 +74,16 @@ export class Function implements Lowerable, Identifiable {
     return this.astNode.id;
   }
 
+  id(): string {
+    return this.idNode().text;
+  }
+
   inferType(_scope: any): Type {
     return this.returned;
   }
 
   public async lower(output: BufWriter) {
-    await output.write(stringToBytes(`pub extern "c" fn ${this.id}(`));
+    await output.write(stringToBytes(`pub extern "c" fn ${this.id()}(`));
 
     let first = true;
     for (const arg of this.args) {
@@ -106,9 +109,8 @@ export class TopLevel implements Scope {
   lookup(id: GenAST.Node): TypeRef | Function | undefined {
     switch (id.text) {
       case "_Noreturn":
-        return new TypeRef(id, "_Noreturn");
       case "int":
-        return new TypeRef(id, "int");
+        return new TypeRef(id);
       default:
         return this.prototypes.get(id.text);
     }
@@ -130,7 +132,7 @@ export class TopLevel implements Scope {
 
   store(entity: Function): typeof entity {
     this.ensureNot(entity.astNode.id);
-    this.prototypes.set(entity.id, entity);
+    this.prototypes.set(entity.id(), entity);
     return entity;
   }
 }

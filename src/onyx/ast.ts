@@ -9,6 +9,9 @@ export { default as Keyword } from "./ast/keyword.ts";
 import Extern from "./ast/extern.ts";
 export { default as Extern } from "./ast/extern.ts";
 
+import { Import } from "./ast/module.ts";
+export { Import } from "./ast/module.ts";
+
 import Final from "./ast/final.ts";
 export { default as Final } from "./ast/final.ts";
 
@@ -30,14 +33,14 @@ export * from "./ast/id.ts";
 import { If } from "./ast/branch.ts";
 export * from "./ast/branch.ts";
 
-import { IntLiteral } from "./ast/literal.ts";
+import { IntLiteral, StringLiteral } from "./ast/literal.ts";
 export * from "./ast/literal.ts";
 
 import { Return } from "./ast/command.ts";
 export * from "./ast/command.ts";
 
 // A top-level directive.
-export type Directive = Extern;
+export type Directive = Extern | Import;
 
 // A entity declaration.
 export type Declaration = Final | Struct | Def;
@@ -52,19 +55,19 @@ export type Instruction = Return;
 export type RVal = Call | ExplicitSafety | Literal | Instruction | ID;
 
 // A literal, like a "baked-in" source code value.
-export type Literal = IntLiteral;
+export type Literal = IntLiteral | StringLiteral;
 
 // An expression may be a part of a block.
 export type Expression = Declaration | Statement | RVal;
 
 // `trait Resolvable<T> derive Node`.
 export interface Resolvable<T> {
-  resolve(syntax: DST.Scope, semantic?: any): T;
+  resolve(syntax: DST.Scope, semantic?: any): Promise<T>;
 }
 
 // HACK: Used because `OnyxAST.Resolvable[]` is illegal.
 export interface Node {
-  resolve(syntax: DST.Scope, semantic?: any): any;
+  resolve(syntax: DST.Scope, semantic?: any): Promise<any>;
 }
 
 export function ensureRVal(

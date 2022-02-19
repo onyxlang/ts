@@ -24,16 +24,19 @@ export class Case extends AST.Node implements Resolvable<DST.Case>, Node {
     this.body = body;
   }
 
-  resolve(syntax: DST.Scope, _semantic?: any): DST.Case {
-    const cond = ensureRVal(this.cond.resolve(syntax), this.cond.location);
+  async resolve(syntax: DST.Scope, _semantic?: any): Promise<DST.Case> {
+    const cond = ensureRVal(
+      await this.cond.resolve(syntax),
+      this.cond.location,
+    );
 
     if (this.body instanceof Block) {
-      return new DST.Case(this, cond, this.body.resolve(syntax));
+      return new DST.Case(this, cond, await this.body.resolve(syntax));
     } else {
       return new DST.Case(
         this,
         cond,
-        ensureRVal(this.body.resolve(syntax), this.body.location),
+        ensureRVal(await this.body.resolve(syntax), this.body.location),
       );
     }
   }
@@ -59,25 +62,25 @@ export class If extends AST.Node implements Resolvable<DST.If>, Node {
     this.else = _else;
   }
 
-  resolve(syntax: DST.Scope, _semantic?: any): DST.If {
-    const self = this.self.resolve(syntax);
+  async resolve(syntax: DST.Scope, _semantic?: any): Promise<DST.If> {
+    const self = await this.self.resolve(syntax);
 
     const elifs = new Array<DST.Case>();
     for (const elif of this.elifs) {
-      elifs.push(elif.resolve(syntax));
+      elifs.push(await elif.resolve(syntax));
     }
 
     let dst: DST.If;
 
     if (this.else) {
       if (this.else instanceof Block) {
-        dst = new DST.If(this, self, elifs, this.else.resolve(syntax));
+        dst = new DST.If(this, self, elifs, await this.else.resolve(syntax));
       } else {
         dst = new DST.If(
           this,
           self,
           elifs,
-          ensureRVal(this.else.resolve(syntax), this.else.location),
+          ensureRVal(await this.else.resolve(syntax), this.else.location),
         );
       }
     } else {

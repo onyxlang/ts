@@ -1,17 +1,15 @@
-// @deno-types="https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.d.ts"
-import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15/lib/peg.js";
-
 // @deno-types="https://deno.land/x/chalk_deno@v4.1.1-deno/index.d.ts"
 import chalk from "https://deno.land/x/chalk_deno@v4.1.1-deno/source/index.js";
 
 import * as GenericAST from "./ast.ts";
-import { readLine } from "./util.ts";
+import { readLineFromFile, readLineFromString } from "./util.ts";
+import { LocationRange } from "./parser.ts";
 
 export class Note {
   message: string;
-  location?: peggy.LocationRange;
+  location?: LocationRange;
 
-  constructor(message: string, location?: peggy.LocationRange) {
+  constructor(message: string, location?: LocationRange) {
     this.message = message;
     this.location = location;
   }
@@ -27,14 +25,23 @@ export class Note {
     let message = `${header} ${this.message}`;
 
     if (this.location) {
-      const line = await readLine(
-        this.location.source,
-        this.location.start.line - 1,
-      );
+      let line: string | undefined;
+
+      if (this.location.source.sourceCode) {
+        line = await readLineFromString(
+          this.location.source.sourceCode,
+          this.location.start.line - 1,
+        );
+      } else {
+        line = await readLineFromFile(
+          this.location.source.filePath,
+          this.location.start.line - 1,
+        );
+      }
 
       if (!line) {
         throw Error(
-          `Could not read line ${this.location.start.line} from ${this.location.source}`,
+          `Could not read line ${this.location.start.line} from ${this.location.source.filePath}`,
         );
       }
 
@@ -44,7 +51,7 @@ export class Note {
 
   ${chalk.gray("@")} ${
         chalk.cyan(
-          `${this.location.source}:${this.location.start.line}` +
+          `${this.location.source.filePath}:${this.location.start.line}` +
             `:${this.location.start.column}:${this.location.end.line}:` +
             `${this.location.end.column}`,
         )
@@ -68,7 +75,7 @@ export default class Panic extends Error {
 
   constructor(
     message: string,
-    location?: peggy.LocationRange,
+    location?: LocationRange,
     notes: Note[] = [],
   ) {
     super(message);

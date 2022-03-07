@@ -21,7 +21,11 @@ import * as GenAST from "./ast.ts";
 
 import Panic from "./panic.ts";
 
-function copyLocationRange(source: peggy.LocationRange): peggy.LocationRange {
+export interface LocationRange extends peggy.LocationRange {
+  source: { filePath: string; sourceCode?: string };
+}
+
+function copyLocationRange(source: LocationRange): LocationRange {
   return {
     source: source.source,
     start: {
@@ -38,14 +42,15 @@ function copyLocationRange(source: peggy.LocationRange): peggy.LocationRange {
 }
 
 export function joinLocationRanges(
-  ranges: peggy.LocationRange[],
-): peggy.LocationRange {
+  ranges: LocationRange[],
+): LocationRange {
   const result = copyLocationRange(ranges[0]);
 
   for (const range of ranges) {
-    if (result.source !== range.source) {
+    if (result.source.filePath !== range.source.filePath) {
       throw Error(
-        `Location source mismatch upon joining them: ${result.source} vs. ${range.source}`,
+        `Location source mismatch upon joining: ${result.source.filePath}\
+         vs. ${range.source.filePath}`,
       );
     }
 
@@ -94,18 +99,20 @@ const pegParser = peggy.generate(grammarSource, {
 });
 
 /**
- * Parse an Onyx source file CST.
- * @param filePath Path to source file
- * @returns The parsed CST.
+ * Parse an Onyx AST.
+ *
+ * @param filePath   Path to source file to display in errors
+ * @param sourceCode Actual source code to parse
+ *
+ * @returns The parsed AST.
  */
 export default async function parse(
   filePath: string,
+  sourceCode: string,
 ): Promise<OnyxAST.Node[]> {
-  const input = await Deno.readTextFile(filePath);
-
   try {
-    return pegParser.parse(input, {
-      grammarSource: filePath,
+    return pegParser.parse(sourceCode, {
+      grammarSource: { filePath, sourceCode },
       startRule: "top_level",
       trace,
     });
@@ -113,7 +120,7 @@ export default async function parse(
     if (typeof e.format === "function") {
       await new Panic(
         (e as peggy.parser.SyntaxError).message,
-        (e as peggy.parser.SyntaxError).location,
+        (e as peggy.parser.SyntaxError).location as LocationRange,
       ).log({ backtrace: false });
 
       Deno.exit(1);
@@ -121,4 +128,9 @@ export default async function parse(
       throw e;
     }
   }
+}
+
+export async function parseFile(filePath: string): Promise<OnyxAST.Node[]> {
+  const sourceCode = await Deno.readTextFile(filePath);
+  return parse(filePath, sourceCode);
 }

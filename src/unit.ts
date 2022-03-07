@@ -4,7 +4,7 @@ import Program from "./program.ts";
 import * as OnyxAST from "./onyx/ast.ts";
 import * as OnyxDST from "./onyx/dst.ts";
 import * as Lang from "./onyx/lang.ts";
-import parse from "./parser.ts";
+import parse, { parseFile } from "./parser.ts";
 
 // IDEA: Would be nice to have this syntax in Onyx:
 //
@@ -30,11 +30,15 @@ import parse from "./parser.ts";
 export default class Unit {
   readonly program: Program;
   readonly filePath: string;
+  readonly isBuiltin: boolean;
+
+  private _source?: string;
   private _ast?: OnyxAST.Node[];
   private _dst?: OnyxDST.TopLevel;
   private _loweredModulePath?: string;
 
   defaultExport?: OnyxDST.Exportable;
+  readonly exports = new Map<string, OnyxDST.Exportable>();
   readonly imports = new Map<string, OnyxDST.Exportable>();
 
   cachedPath(): Promise<string> {
@@ -59,9 +63,19 @@ export default class Unit {
     return !!this._dst;
   }
 
-  constructor(program: Program, path: string) {
+  /**
+   * @param source An explicit unit source; otherwise file at _filePath_ is parsed.
+   */
+  constructor(
+    program: Program,
+    filePath: string,
+    source?: string,
+    isBuiltin: boolean = false,
+  ) {
     this.program = program;
-    this.filePath = path;
+    this.filePath = filePath;
+    this._source = source;
+    this.isBuiltin = isBuiltin;
   }
 
   async parse() {
@@ -69,7 +83,13 @@ export default class Unit {
       return; // Already parsed
     }
 
-    this._ast = await parse(this.filePath);
+    // If explicit unit source if given, parse it.
+    // Otherwise, parse the file at _this.filePath_.
+    if (this._source) {
+      this._ast = await parse(this.filePath, this._source);
+    } else {
+      this._ast = await parseFile(this.filePath);
+    }
   }
 
   async compile() {
@@ -77,6 +97,14 @@ export default class Unit {
     this._dst = new OnyxDST.TopLevel(this);
 
     console.debug(`Compiling ${this.filePath}...`);
+
+    if (!this.isBuiltin) {
+      // Implicit `import * from "builtin.nx"` in each non-builtin unit.
+      for (const [name, object] of (await this.program.builtin()).exports) {
+        this.imports.set(name, object);
+      }
+    }
+
     for (const node of this._ast!) {
       const dst = await node.resolve(this._dst);
       if (dst instanceof OnyxDST.Call) this._dst.store(dst);

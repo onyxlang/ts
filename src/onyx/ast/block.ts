@@ -4,15 +4,22 @@ import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15
 import * as DST from "../dst.ts";
 import * as Lang from "../lang.ts";
 import * as AST from "../../ast.ts";
-import { ensureRVal, Expression, Node, Resolvable, RVal } from "../ast.ts";
+import {
+  Comment,
+  ensureRVal,
+  Expression,
+  Node,
+  Resolvable,
+  RVal,
+} from "../ast.ts";
 
 export default class Block extends AST.Node implements Resolvable<DST.Block> {
-  readonly body: (Expression)[];
+  readonly body: (Expression | Comment)[];
 
   constructor(
     location: peggy.LocationRange,
     text: string,
-    { body }: { body: (Expression)[] },
+    { body }: { body: (Expression | Comment)[] },
   ) {
     super(location, text);
     this.body = body;

@@ -9,7 +9,7 @@
 // A per-parse initializer.
 {
   // TODO: Display relative path to files.
-  console.debug(`Parsing ${options.grammarSource}`)
+  console.debug(`Parsing ${options.grammarSource.filePath}`)
 
   function node() {
     return new Generic.AST.Node(location(), text())
@@ -29,8 +29,8 @@
 EOF = !.
 
 // A comment spans until the end of the line.
-comment = '#' value:$([^\n\r]+) (&nl / &EOF) {
-  return new Onyx.CST.Comment(location(), text(), { value })
+comment = '#' value:$([^\n\r]*) (&nl / &EOF) {
+  return new Onyx.AST.Comment(location(), text(), { value })
 }
 
 // Horizontal space.
@@ -59,8 +59,8 @@ literal = int_literal / string_literal
 expression = declaration / statement / instruction / rval
 
 top_level = wsp?
-  head:(directive / expression)
-  tail:(term wsp? @(directive / expression))*
+  head:(directive / expression / comment)
+  tail:(term wsp? @(directive / expression / comment))*
   term? wsp? EOF
 {
   return [head].concat(tail)
@@ -74,7 +74,7 @@ extern = keyword:kw_extern sp value:c_prototype {
   return new Onyx.AST.Extern(location(), text(), { keyword, value })
 }
 
-import = keyword:kw_import sp alias:id sp kw_from sp from:string_literal {
+import = keyword:(kw_import / kw_export) sp alias:id sp kw_from sp from:string_literal {
   return new Onyx.AST.Import(location(), text(), { keyword, alias, from })
 }
 
@@ -330,8 +330,8 @@ string_literal = '"' value:$([^"\\] / "\\" .)* '"' {
 //
 
 block = '{' wsp?
-  head:expression?
-  tail:(term sp? @expression)*
+  head:(expression / comment)?
+  tail:(term sp? @(expression / comment))*
   term? wsp? '}'
 {
   trace(`block`)

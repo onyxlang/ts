@@ -1,0 +1,6 @@
+# Each Onyx source file implicitly has `import * from "builtin.nx"`.
+# In other cases, `import *` is illegal.
+#
+
+export Bool from "builtin/bool.nx"
+export Int32 from "builtin/int.nx"

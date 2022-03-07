@@ -4,6 +4,8 @@ import peggy from "https://raw.githubusercontent.com/vladfaust/peggy/cjs-to-es15
 import * as DST from "./dst.ts";
 import Panic from "../panic.ts";
 
+export { default as Comment } from "./ast/comment.ts";
+
 export { default as Keyword } from "./ast/keyword.ts";
 
 import Extern from "./ast/extern.ts";

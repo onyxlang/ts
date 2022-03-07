@@ -1,6 +1,7 @@
 import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 import { encodeToString } from "https://deno.land/std@0.97.0/encoding/hex.ts";
 import * as BufferAPI from "https://deno.land/std/io/buffer.ts";
+import { StringReader } from "https://deno.land/std@0.128.0/io/mod.ts";
 
 export function stringToBytes(value: string): Uint8Array {
   return new TextEncoder().encode(value);
@@ -18,25 +19,45 @@ export async function digest(algo: AlgorithmIdentifier, data: string) {
   return encodeToString(new Uint8Array(digest));
 }
 
-/**
- * @param filePath   File path to read from
- * @param lineNumber The line number to return, starting from 0
- * @returns          The line read, or undefined
- */
-export async function readLine(
-  filePath: string,
+async function readLine(
+  reader: Deno.Reader,
   lineNumber: number,
 ): Promise<string | undefined> {
-  const fileReader = await Deno.open(filePath);
-
   let i = 0;
-  for await (const line of BufferAPI.readLines(fileReader)) {
+
+  for await (const line of BufferAPI.readLines(reader)) {
     if (lineNumber == i++) {
       return line;
     }
   }
 
   return undefined;
+}
+
+/**
+ * @param source     Source code string to read from
+ * @param lineNumber The line number to return, starting from 0
+ * @returns          The line read, or undefined if there is no such line
+ */
+export async function readLineFromString(
+  source: string,
+  lineNumber: number,
+): Promise<string | undefined> {
+  const stringReader = new StringReader(source);
+  return await readLine(stringReader, lineNumber);
+}
+
+/**
+ * @param filePath   File path to read from
+ * @param lineNumber The line number to return, starting from 0
+ * @returns          The line read, or undefined if there is no such line
+ */
+export async function readLineFromFile(
+  filePath: string,
+  lineNumber: number,
+): Promise<string | undefined> {
+  const fileReader = await Deno.open(filePath);
+  return await readLine(fileReader, lineNumber);
 }
 
 export function enumFromStringValue<T>(

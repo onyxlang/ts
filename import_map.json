@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "/builtin.nx": "./src/shim/builtin.nx.ts",
+    "/builtin/bool.nx": "./src/shim/builtin/bool.nx.ts",
+    "/builtin/int.nx": "./src/shim/builtin/int.nx.ts"
+  }
+}

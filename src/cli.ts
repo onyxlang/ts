@@ -1,5 +1,5 @@
-import yargs from "https://deno.land/x/yargs/deno.ts";
-import { Arguments } from "https://deno.land/x/yargs/deno-types.ts";
+import yargs from "https://deno.land/x/yargs@v17.3.1-deno/deno.ts";
+import { Arguments } from "https://deno.land/x/yargs@v17.3.1-deno/deno-types.ts";
 import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 import compile from "./cli/compile.ts";
 import run from "./cli/run.ts";

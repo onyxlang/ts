@@ -1,6 +1,6 @@
 import * as pathAPI from "https://deno.land/std@0.122.0/path/mod.ts";
 import { encodeToString } from "https://deno.land/std@0.97.0/encoding/hex.ts";
-import * as BufferAPI from "https://deno.land/std/io/buffer.ts";
+import * as BufferAPI from "https://deno.land/std@0.122.0/io/buffer.ts";
 import { StringReader } from "https://deno.land/std@0.128.0/io/mod.ts";
 
 export function stringToBytes(value: string): Uint8Array {

@@ -33,7 +33,7 @@ jobs:
           version: 0.9.0
 
       - name: Build compiler
-        run: deno compile -A --output bin/onyx src/main.ts
+        run: deno run -A --import-map=./import_map.json build.ts
 
       - name: Run spec
         run: deno test -A spec/spec.ts -- bin/onyx

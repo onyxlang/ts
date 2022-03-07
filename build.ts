@@ -27,6 +27,8 @@ export default async function build(): Promise<number> {
     imports["/" + embeddable.embedPath] = "file://" + embeddable.outputPath;
   }
 
+  console.debug(`Temporary import map: ` + JSON.stringify({ imports }));
+
   const importMapPath = await Deno.makeTempFile();
   await Deno.writeTextFile(importMapPath, JSON.stringify({ imports }));
 
